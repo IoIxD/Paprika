@@ -1,0 +1,4 @@
+name: paprika
+version: @0.1@
+description: A bridge plugin that lets you write Minecraft plugins in lua
+main: net.ioixd.paprika.Paprika
