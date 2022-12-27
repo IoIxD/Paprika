@@ -57,6 +57,7 @@ def class_from_tag(tag: Tag, description: str) -> JavaClass:
     javaclass.name = javaclass_parts.group(0)
     args = javaclass_parts.group(1).split(",")
     for arg in args:
+        print(arg)
         arg_parts = arg.split(" ")
         javaclass.args[arg_parts[1]] = arg_parts[0]
 
@@ -70,10 +71,9 @@ def method_from_tag(tag: Tag, description: str, modifier: str, type: str) -> Met
     method.modifier = modifier
     method_parts: Match[str] = re.search(r"(.*?)(\(.*?\)|\s|\n)", tag.text)
     method.name = method_parts.group(0)
-    args = method_parts.group(1).split(",")
+    args = tag.text.split(",")
     for arg in args:
-        arg_parts = arg.split(" ")
-        method.args[arg_parts[1]] = arg_parts[0]
+        method.args[method_parts.group(1)] = method_parts.group(0)
 
     method.description = description
     return method
@@ -104,24 +104,31 @@ class Javadoc:
                     if(method_table is None):
                         raise Exception("There was no method or classes table. Did you get a 404?")
 
-                methods = list[Method]
-                nested_classes = list[JavaClass]
+                methods = []
+                nested_classes = []
 
-                modifier_tags: ResultSet = method_table.find("div", {"class": "col-first"})
-                method_tags: ResultSet = method_table.find("div", {"class": "col-second"})
-                description_tags: ResultSet = method_table.find("div", {"class": "col-three"})
+                modifier_tags: ResultSet = method_table.find_all("div", {"class": "col-first"})
+                method_tags: ResultSet = method_table.find_all("div", {"class": "col-second"})
+                description_tags: ResultSet = method_table.find_all("div", {"class": "col-last"})
 
                 i = 0
                 for tag in method_tags:
-                    print(tag.text)
-                    if(tag.text != "Method" and tag.text != "Interface"):
+                    if(tag.text == "Method" and tag.text == "Interface"):
+                        i += 1
                         continue
 
                     tag: Tag = tag.find("code")
+                    if tag is None:
+                        continue
 
                     # modifier
                     modifier_tag = modifier_tags[i]
-                    modifier_parts = modifier_tag.split(" ")
+
+                    if(modifier_tag.text == "Modifier and Type"):
+                        i += 1
+                        modifier_tag = modifier_tags[i]
+
+                    modifier_parts = modifier_tag.text.split(" ")
                     type: str = ""
                     modifier: str = ""
                     if(len(modifier_parts) == 1):
@@ -132,13 +139,12 @@ class Javadoc:
                         type = modifier_parts[1]
 
                     if type == "class":
-                        javaclass = class_from_tag(tag, description_tags[i])
-                        nested_classes.append(javaclass)
+                        nested_classes.append(class_from_tag(tag, description_tags[i]))
                     else:
-                        method = method_from_tag(tag, description_tags[i], modifier, type)
-                        methods.append(method)
+                        methods.append(method_from_tag(tag, description_tags[i], modifier, type))
 
                     i += 1
+                    print(methods)
 
                 match title:
                     case "Class Hierarchy":
@@ -161,8 +167,8 @@ class Javadoc:
 
             case "Enum Hierarchy":
                 enum_table: Tag = item_tree.find(id="enum-constant-summary")
-                enum_tags: ResultSet = enum_table.find("div", {"class": "col-first"})
-                description_tags: ResultSet = enum_table.find("div", {"class": "col-second"})
+                enum_tags: ResultSet = enum_table.find_all("div", {"class": "col-first"})
+                description_tags: ResultSet = enum_table.find_all("div", {"class": "col-second"})
 
                 i = 0
 
@@ -188,7 +194,7 @@ class Javadoc:
 
                 modifier_tags: ResultSet = method_table.find("div", {"class": "col-first"})
                 method_tags: ResultSet = method_table.find("div", {"class": "col-second"})
-                description_tags: ResultSet = method_table.find("div", {"class": "col-three"})
+                description_tags: ResultSet = method_table.find("div", {"class": "col-last"})
 
                 methods = list[Method]
 
