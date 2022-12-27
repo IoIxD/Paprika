@@ -1,28 +1,128 @@
 # https://hub.spigotmc.org/javadocs/spigot/org/bukkit/package-tree.html
 
-import requests, re
+import requests, re, os
 from re import Match
 from bs4 import BeautifulSoup, ResultSet, Tag
-import json
+from os.path import exists
+
+def get_url(url) -> str:
+    urle = url.replace("/","_",99).replace("\\","_",99)
+    if exists("./.cache/"+urle):
+        f = open("./.cache/"+urle, "r")
+        body = f.read()
+        f.close()
+        return body
+    else:
+        body = requests.get(url).text
+        if os.path.exists("./.cache") is False:
+            os.mkdir("./.cache")
+        f = open("./.cache/"+urle, "w")
+        f.write(body)
+        f.close()
+        return body
+
 
 class Method:
-    name: str
-    modifier: str
-    ty: str
+    name: str = ""
+    modifier: str = ""
+    ty: str = ""
     args = {}
-    description: str
+    description: str = ""
+
     def toJSON(self):
-        return json.dumps(self, default=lambda o: o.__dict__,
-            sort_keys=True, indent=4)
+        s: str = ""
+        # yes i "RTFM", try to use json encode gives a weird error.
+        # AttributeError: 'mappingproxy' object has no attribute '__dict__'. Did you mean: '__dir__'?
+        s += "{\"name\": \""
+        s += self.name
+        s += "\", \"modifier\": \""
+        s += self.modifier
+        s += "\", \"ty\": \""
+        s += self.ty
+        s += "\", \"args\": {"
+        i = 0
+        for key, value in self.args.items():
+            s += "\""+str(key)+"\": \""+str(value)+"\""
+            if i != len(self.args.items())-1:
+                s += ", "
+        s += "}, \"description\": \""
+        s += self.description.replace("\"","'")
+        s += "\"}"
+        return s
+
+    def __init__(self):
+        self.name = ""
+        self.modifier = ""
+        self.ty = ""
+        self.args = {}
+        self.description = ""
+
+    def fromtag(tag: Tag, description: str, modifier: str, type: str):
+        self = Method()
+        self.ty = type
+        self.name = tag.find("a").text
+        self.modifier = modifier
+        method_parts: Match[str] = re.search(r"(.*?)\((.*?)\)", tag.text)
+        if method_parts is not None:
+            self.name = method_parts.group(1)
+            args = method_parts.group(2).split(",")
+
+            for arg in args:
+                parts = arg.replace("\xa0", " ").split(" ")
+                if(len(parts) == 1):
+                    continue
+                self.args[parts[1]] = parts[0]
+
+        self.description = description.text
+        return self
 
 class JavaClass:
     java_import: str  = ""
     name: str = ""
     methods: list[Method] = []
     description: str = ""
+
     def toJSON(self):
-        return json.dumps(self, default=lambda o: o.__dict__,
-            sort_keys=True, indent=4)
+        s: str = ""
+        # yes i "RTFM", try to use json encode gives a weird error.
+        # AttributeError: 'mappingproxy' object has no attribute '__dict__'. Did you mean: '__dir__'?
+        s += "{\"java_import\": \""
+        s += self.java_import
+        s += "\", \"name\": \""
+        s += self.name
+        s += "\", \"methods\": ["
+        i = 0
+        for method in self.methods:
+            s += method.toJSON()
+            if(i != len(self.methods)-1):
+                s += ", "
+            i += 1
+        s += "], \"description\": \""
+        s += self.description.replace("\"","'")
+        s += "\"}"
+        return s
+
+    def __init__(self):
+        self.java_import = ""
+        self.name = ""
+        self.methods = []
+        self.description = ""
+
+    def fromtag(tag: Tag, description: str):
+        self = JavaClass()
+        self.name = tag.find("a").text
+        javaclass_parts: Match[str] = re.search(r"(.*?)\((.*?)\)", tag.text)
+        if javaclass_parts is not None:
+            self.name = javaclass_parts.group(1)
+            args = javaclass_parts.group(2).split(",")
+            for arg in args:
+                parts = arg.replace("\xa0", " ").split(" ")
+                if(len(parts) == 1):
+                    continue
+                self.args[parts[1]] = parts[0]
+
+        self.description = description.text
+        return self
 
 class JavaInterface:
     java_import: str  = ""
@@ -30,53 +130,94 @@ class JavaInterface:
     methods: list[Method] = []
     description: str = ""
     nested_classes: list[JavaClass] = []
+
+    def __init__(self):
+        self.java_import = ""
+        self.name = ""
+        self.methods = []
+        self.description = ""
+        self.nested_classes = []
+
     def toJSON(self):
-        return json.dumps(self, default=lambda o: o.__dict__,
-            sort_keys=True, indent=4)
+        s: str = ""
+        # yes i "RTFM", try to use json encode gives a weird error.
+        # AttributeError: 'mappingproxy' object has no attribute '__dict__'. Did you mean: '__dir__'?
+        s += "{\"java_import\": \""
+        s += self.java_import
+        s += "\", \"name\": \""
+        s += self.name
+        s += "\", \"methods\": ["
+        i = 0
+        for method in self.methods:
+            if method is not None:
+                s += method.toJSON()
+            if(i != len(self.methods)-1):
+                s += ", "
+            i += 1
+        s += "], \"nested_classes\": ["
+        i = 0
+        for c in self.nested_classes:
+            s += c.toJSON()
+            if(i != len(self.nested_classes)-1):
+                s += ", "
+            i += 1
+        s += "]}"
+        return s
 
 class JavaEnumConstant:
     name: str = ""
     description: str = ""
+
+    def __init__(self):
+        self.name = ""
+        self.description = ""
+
     def toJSON(self):
-        return json.dumps(self, default=lambda o: o.__dict__,
-            sort_keys=True, indent=4)
+        s: str = ""
+        # yes i "RTFM", try to use json encode gives a weird error.
+        # AttributeError: 'mappingproxy' object has no attribute '__dict__'. Did you mean: '__dir__'?
+        s += "{\"name\": \""
+        s += self.name
+        s += "\", \"description\": \""
+        s += self.description.replace("\"","'")
+        s += "\"}"
+        return s
 
 class JavaEnum:
     java_import: str = ""
     name: str = ""
     methods: list[Method] = []
     constants: list[JavaEnumConstant] = []
+
+    def __init__(self):
+        self.java_import = ""
+        self.name = ""
+        self.methods = []
+        self.description = ""
+
     def toJSON(self):
-        return json.dumps(self, default=lambda o: o.__dict__,
-            sort_keys=True, indent=4)
-
-def class_from_tag(tag: Tag, description: str) -> JavaClass:
-    javaclass = JavaClass()
-    javaclass.name = tag.find("a").text
-    javaclass_parts: Match[str] = re.search(r"(.*?)(\(.*?\)|\s|\n)", tag.text)
-    javaclass.name = javaclass_parts.group(0)
-    args = javaclass_parts.group(1).split(",")
-    for arg in args:
-        print(arg)
-        arg_parts = arg.split(" ")
-        javaclass.args[arg_parts[1]] = arg_parts[0]
-
-    javaclass.description = description
-    return javaclass
-
-def method_from_tag(tag: Tag, description: str, modifier: str, type: str) -> Method:
-    method = Method()
-    method.ty = type
-    method.name = tag.find("a").text
-    method.modifier = modifier
-    method_parts: Match[str] = re.search(r"(.*?)(\(.*?\)|\s|\n)", tag.text)
-    method.name = method_parts.group(0)
-    args = tag.text.split(",")
-    for arg in args:
-        method.args[method_parts.group(1)] = method_parts.group(0)
-
-    method.description = description
-    return method
+        s: str = ""
+        # yes i "RTFM", try to use json encode gives a weird error.
+        # AttributeError: 'mappingproxy' object has no attribute '__dict__'. Did you mean: '__dir__'?
+        s += "{\"java_import\": \""
+        s += self.java_import
+        s += "\", \"name\": \""
+        s += self.name
+        s += "\", \"methods\": ["
+        i = 0
+        for method in self.methods:
+            s += method.toJSON()
+            if(i != len(self.methods)-1):
+                s += ", "
+            i += 1
+        s += "], \"nested_classes\": ["
+        for c in self.constants:
+            s += c.toJSON()
+            if(i != len(self.constants)-1):
+                s += ", "
+            i += 1
+        s += "]}"
+        return s
 
 class Javadoc:
     classes: list[JavaClass] = []
@@ -90,8 +231,8 @@ class Javadoc:
 
         # scrape the url with information about the item
         item_url = spigot_url_from_tag(parent, tag)
-        item_html = requests.get(item_url)
-        item_tree = BeautifulSoup(item_html.text, "html.parser")
+        item_html = get_url(item_url)
+        item_tree = BeautifulSoup(item_html, "html.parser")
 
         print("> "+item_url)
 
@@ -139,12 +280,11 @@ class Javadoc:
                         type = modifier_parts[1]
 
                     if type == "class":
-                        nested_classes.append(class_from_tag(tag, description_tags[i]))
+                        nested_classes.append(JavaClass.fromtag(tag, description_tags[i]))
                     else:
-                        methods.append(method_from_tag(tag, description_tags[i], modifier, type))
+                        methods.append(Method.fromtag(tag, description_tags[i], modifier, type))
 
                     i += 1
-                    print(methods)
 
                 match title:
                     case "Class Hierarchy":
@@ -152,7 +292,9 @@ class Javadoc:
                         javaclass.java_import = parent
                         javaclass.name = tag.text
                         javaclass.methods = methods
-                        javaclass.description = item_tree.find(id="class-description").find("div",{"class": "block"})
+                        description = item_tree.find(id="class-description").find("div",{"class": "block"})
+                        if description is not None:
+                            javaclass.description = description.text
                         self.classes.append(javaclass)
                     case "Interface Hierarchy":
                         javainterface = JavaInterface()
@@ -160,7 +302,9 @@ class Javadoc:
                         javainterface.name = tag.text
                         javainterface.methods = methods
                         javainterface.nested_classes = nested_classes
-                        javainterface.description = item_tree.find(id="class-description").find("div",{"class": "block"})
+                        description = item_tree.find(id="class-description").find("div",{"class": "block"})
+                        if description is not None:
+                            javainterface.description = description.text
                         self.interfaces.append(javainterface)
 
             # we don't care about the annotation hierarchy
@@ -168,7 +312,7 @@ class Javadoc:
             case "Enum Hierarchy":
                 enum_table: Tag = item_tree.find(id="enum-constant-summary")
                 enum_tags: ResultSet = enum_table.find_all("div", {"class": "col-first"})
-                description_tags: ResultSet = enum_table.find_all("div", {"class": "col-second"})
+                description_tags: ResultSet = enum_table.find_all("div", {"class": "col-last"})
 
                 i = 0
 
@@ -196,20 +340,28 @@ class Javadoc:
                 method_tags: ResultSet = method_table.find("div", {"class": "col-second"})
                 description_tags: ResultSet = method_table.find("div", {"class": "col-last"})
 
-                methods = list[Method]
+                methods = []
 
                 i = 0
                 for tag in method_tags:
-                    if(tag.text == "Method" or tag.text == "Interface"):
+                    if(tag.text == "Method"):
+                        i += 1
                         continue
 
                     tag: Tag = tag.find("code")
+                    if tag is None:
+                        continue
 
                     # modifier
                     modifier_tag = modifier_tags[i]
-                    modifier_parts = modifier_tag.split(" ")
-                    modifier: str = ""
+
+                    if(modifier_tag.text == "Modifier and Type"):
+                        i += 1
+                        modifier_tag = modifier_tags[i]
+
+                    modifier_parts = modifier_tag.text.split(" ")
                     type: str = ""
+                    modifier: str = ""
                     if(len(modifier_parts) == 1):
                         modifier = "package-private"
                         type = modifier_tag.name
@@ -217,17 +369,40 @@ class Javadoc:
                         modifier = modifier_parts[0]
                         type = modifier_parts[1]
 
-                    method = method_from_tag(tag, description_tags[i], modifier, type)
-                    methods.append(method)
+                    methods.append(Method.fromtag(tag, description_tags[i], modifier, type))
 
+                    i += 1
                 enums.methods = methods
 
                 self.enumerators.append(enums)
 
     def toJSON(self):
+        s: str = ""
+        s += "{\"classes\": ["
+        i = 0
         for c in self.classes:
-            print(c.name)
-
+            s += c.toJSON()
+            if(i != len(self.classes)-1):
+                s += ", "
+            i += 1
+        s += "]"
+        s += ",\"interfaces\": ["
+        i = 0
+        for c in self.interfaces:
+            s += c.toJSON()
+            if(i != len(self.interfaces)-1):
+                s += ", "
+            i += 1
+        s += "]"
+        s += ",\"enumerators\": ["
+        i = 0
+        for c in self.enumerators:
+            s += c.toJSON()
+            if(i != len(self.enumerators)-1):
+                s += ", "
+            i += 1
+        s += "]}"
+        return s
 
 def spigot_url_from_tag(parent: str, tag: Tag) -> str:
     if tag is None:
@@ -239,8 +414,8 @@ def spigot_url_from_tag(parent: str, tag: Tag) -> str:
     return "https://hub.spigotmc.org/javadocs/spigot/org/bukkit/"+tag["href"]
 
 def parse_javadoc(url: str) -> Javadoc:
-    html = requests.get(url)
-    tree = BeautifulSoup(html.text, "html.parser")
+    html = get_url(url)
+    tree = BeautifulSoup(html, "html.parser")
     # validate it
     h2 = tree.find_all("h2", {"title": "Class Hierarchy"})
     if(len(h2) <= 0):
@@ -254,7 +429,6 @@ def parse_javadoc(url: str) -> Javadoc:
         title = section_header.get("title")
         ul: Tag = section.find("ul")
         items: list[Tag] = ul.find_all("li")
-        n = 0
         for item in items:
             # parent class
             parent: str = item.text
@@ -269,12 +443,11 @@ def parse_javadoc(url: str) -> Javadoc:
                     continue
                 doc.add_item(title, item, parent, i)
                 i += 1
-            if n == 5:
-                break
-            n += 1
 
     return doc
 
 print("Parsing the javadoc into an object")
 doc = parse_javadoc("https://hub.spigotmc.org/javadocs/spigot/org/bukkit/package-tree.html")
-print(doc.toJSON())
+f = open("unsafe_objects.json", "w")
+f.write(doc.toJSON().replace("\n","",99999999))
+f.close()
