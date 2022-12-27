@@ -446,8 +446,3 @@ def parse_javadoc(url: str) -> Javadoc:
 
     return doc
 
-print("Parsing the javadoc into an object")
-doc = parse_javadoc("https://hub.spigotmc.org/javadocs/spigot/org/bukkit/package-tree.html")
-f = open("unsafe_lib.json", "w")
-f.write(doc.toJSON().replace("\n","",99999999))
-f.close()
