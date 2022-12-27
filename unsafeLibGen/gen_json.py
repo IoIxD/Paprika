@@ -57,24 +57,28 @@ class Method:
         self.args = {}
         self.description = ""
 
-    def fromtag(tag: Tag, description: str, modifier: str, type: str):
-        self = Method()
-        self.ty = type
-        self.name = tag.find("a").text
-        self.modifier = modifier
+    @classmethod
+    def fromtag(cls, tag: Tag, description: str, modifier: str, type: str):
+        s = cls()
+        s.ty = type
+        s.name = tag.find("a").text
+        s.modifier = modifier
+        s.args = {}
+
         method_parts: Match[str] = re.search(r"(.*?)\((.*?)\)", tag.text)
         if method_parts is not None:
-            self.name = method_parts.group(1)
+            s.name = method_parts.group(1)
             args = method_parts.group(2).split(",")
+
 
             for arg in args:
                 parts = arg.replace("\xa0", " ").split(" ")
                 if(len(parts) == 1):
                     continue
-                self.args[parts[1]] = parts[0]
+                s.args[parts[1]] = parts[0]
 
-        self.description = description.text
-        return self
+        s.description = description.text
+        return s
 
 class JavaClass:
     java_import: str  = ""
@@ -93,6 +97,8 @@ class JavaClass:
         s += "\", \"methods\": ["
         i = 0
         for method in self.methods:
+            if method is None:
+                raise Exception("No methods. Did you return the method in fromtag?")
             s += method.toJSON()
             if(i != len(self.methods)-1):
                 s += ", "
@@ -109,20 +115,20 @@ class JavaClass:
         self.description = ""
 
     def fromtag(tag: Tag, description: str):
-        self = JavaClass()
-        self.name = tag.find("a").text
+        s = JavaClass()
+        s.name = tag.find("a", {"class": "member-name-link"}).text
         javaclass_parts: Match[str] = re.search(r"(.*?)\((.*?)\)", tag.text)
         if javaclass_parts is not None:
-            self.name = javaclass_parts.group(1)
+            s.name = javaclass_parts.group(1)
             args = javaclass_parts.group(2).split(",")
             for arg in args:
                 parts = arg.replace("\xa0", " ").split(" ")
                 if(len(parts) == 1):
                     continue
-                self.args[parts[1]] = parts[0]
+                s.args[parts[1]] = parts[0]
 
-        self.description = description.text
-        return self
+        s.description = description.text
+        return s
 
 class JavaInterface:
     java_import: str  = ""
@@ -260,6 +266,7 @@ class Javadoc:
 
                     tag: Tag = tag.find("code")
                     if tag is None:
+                        i += 1
                         continue
 
                     # modifier
@@ -286,11 +293,12 @@ class Javadoc:
 
                     i += 1
 
+                parent = re.sub(r"(\(.*?\)|<.*?>|\s|\n)", "", parent)
+
                 match title:
                     case "Class Hierarchy":
                         javaclass = JavaClass()
-                        javaclass.java_import = parent
-                        javaclass.name = tag.text
+                        javaclass.name = parent
                         javaclass.methods = methods
                         description = item_tree.find(id="class-description").find("div",{"class": "block"})
                         if description is not None:
@@ -298,8 +306,7 @@ class Javadoc:
                         self.classes.append(javaclass)
                     case "Interface Hierarchy":
                         javainterface = JavaInterface()
-                        javainterface.java_import = parent
-                        javainterface.name = tag.text
+                        javainterface.name = parent
                         javainterface.methods = methods
                         javainterface.nested_classes = nested_classes
                         description = item_tree.find(id="class-description").find("div",{"class": "block"})
@@ -323,6 +330,7 @@ class Javadoc:
                 # get the enum names
                 for tag in enum_tags:
                     if(tag.text == "Enum Constant"):
+                        i += 1
                         continue
                     enum = JavaEnumConstant()
                     enum.name = tag.find("code").find("a").text
@@ -350,6 +358,7 @@ class Javadoc:
 
                     tag: Tag = tag.find("code")
                     if tag is None:
+                        i += 1
                         continue
 
                     # modifier
