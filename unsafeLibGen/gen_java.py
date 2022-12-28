@@ -28,10 +28,6 @@ else:
     print("unsafe_lib.json not found, creating")
     print("parsing the main package tree")
     doc = gen_json.parse_javadoc("https://hub.spigotmc.org/javadocs/spigot/org/bukkit/package-tree.html")
-    print("parsing the permissions package tree")
-    doc2 = gen_json.parse_javadoc("https://hub.spigotmc.org/javadocs/spigot/org/bukkit/permissions/package-tree.html")
-    print("adding them")
-    doc += doc2
     """
     print("parsing the profile package tree")
     doc2 = gen_json.parse_javadoc("https://hub.spigotmc.org/javadocs/spigot/org/bukkit/profile/package-tree.html")
@@ -82,60 +78,120 @@ for i in unsafe_lib["interfaces"]:
     name_raw = name_parts[len(name_parts)-1]
 
     # the tricky thing is that "abstract methods can't be instated".
-    # so we need to find a few hacky methods to let them be instated anyways.
-
-    # first, find a getter method for the relevant interface. this exists for most of them.
-    method = None
-    for c in unsafe_lib["classes"]:
-        for m in c["methods"]:
-            if m["name"] == "get"+name_raw:
-                method = m
-                break
-    for i2 in unsafe_lib["interfaces"]:
-        for m in i2["methods"]:
-            if m["name"] == "get"+name_raw:
-                method = m
-                break
-
-    if method is None:
-        continue
+    # so for these functions we have to return anonymous, non-abstract objects that implement
+    # the abstract ones.
 
     f.write("""
         {name} construct{nameraw}(String json) {{
-            return new {nameraw}() {{
+            {nameraw} obj = new {nameraw}() {{
             """.format(name=i["name"],
                         nameraw=name_raw,
-                        methodname=method["name"],
-                        args=list_to_arr(method["args"]),
             )
         )
 
-    n = 0
-    print(i["nested_classes"])
-    for m in i["methods"]:
+    # get the interfaces that correspond to its "subinterfaces", if any
+    submethods = []
+    for i2 in unsafe_lib["interfaces"]:
+        name_parts = i2["name"].split(".")
+        name_raw = name_parts[len(name_parts)-1]
+        if name_raw in i["superinterfaces"]:
+            for method in i2["methods"]:
+                submethods.append(method)
+
+    added_methods = []
+    added_variables = []
+
+    # make an anonymous class that implements all of these methods.
+    for m in (i["methods"] + submethods):
+        # skip duplicates
+        if (m["name"], m["args"]) in added_methods:
+            continue
+
+        added_methods.append((m["name"], m["args"]))
+
         #print(list_to_arr(m["args"]))
         args = " ".join(list_to_arr(m["args"]))
         args = re.sub('(\s[^\s]*)\s', r'\1, ', args)
 
+        # for some methods, make sure we specify the relevant variable above.
+        name = m["name"]
+
         if(m["nullable"] == "false"):
-            f.write("\n\t\t\t@NotNull")
+            f.write("\n\t\t\t\t@NotNull")
         if(m["nullable"] == "true"):
-            f.write("\n\t\t\t@Nullable")
+            f.write("\n\t\t\t\t@Nullable")
         if(m["nullable"] == "None"):
-            f.write("\n\t\t\t@Override")
+            f.write("\n\t\t\t\t@Override")
 
         f.write("""
-            {mod} {ty} {name}({args}) {{
-            }}
-        """.format(mod=m["modifier"],ty=m["ty"],name=m["name"],args=args)
+                {mod} {ty} {name}({args}) {{
+        """.format(mod=m["modifier"],ty=m["ty"],name=name,args=args)
         )
-        n += 1
+
+        # what we want to do now depends on the type of method.
+
+        # for getter/setter methods, make sure the variable exists.
+        get = (name.startswith("get") or name.startswith("has") or name.startswith("is"))
+        set = (name.startswith("set"))
+        if(get or set):
+            name_stripped: str = name.replace("get","",1).replace("set","",1)
+            if(name.startswith("has")):
+                name_stripped = name_stripped.replace("has","",1)
+            if(name.startswith("is")):
+                name_stripped = name_stripped.replace("is","",1)
+            if(name_stripped == ""):
+                continue
+            # lower case
+            name_stripped = name_stripped[0].lower() + name_stripped[1:]
+
+        if(set):
+            # one argument means its a simple assignment.
+            items = m["args"].items()
+            if(len(items) == 1):
+                key = list(m["args"].keys())[0]
+                value = list(m["args"].values())[0]
+                f.write("\t\t\t{name} = {value};".format(name=name_stripped,value=key))
+                f.write("""
+                }
+                """)
+                if(name_stripped in added_variables):
+                    continue
+                f.write("""
+                {mod} {ty} {name};
+            """.format(mod=m["modifier"],ty=value,value=key,name=name_stripped))
+                added_variables.append(name_stripped)
+                continue
+            # multiple arguments is a weird case that needs to be investigated.
+
+        if(get):
+            # no argument means its a simple return.
+            items = m["args"].items()
+            if(len(items) == 0):
+                f.write("\t\t\treturn {name};\n\t\t\t}}".format(name=name_stripped))
+                if(name_stripped in added_variables):
+                    continue
+                f.write("""
+                {mod} {ty} {name};
+        """.format(mod=m["modifier"],ty=m["ty"],name=name_stripped))
+                added_variables.append(name_stripped)
+                continue
+            # multiple arguments is a weird case that needs to be investigated.
+
+        # if we're at this point, we've reached an exception to the naming rule. do nothing.
+        f.write("\t\t\t/* TODO */\n\t\t\t\t}")
+
         """
-        if(n == 25):
-            break
+            TODO:
+                - begrudgingly implement a "patches" system for functions that aren't generic.
+                -
+
         """
 
+    # TODO: object modification via the provided json
+
     f.write("""
+            };
+            return obj;
         }
     """)
 

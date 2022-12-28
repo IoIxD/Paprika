@@ -29,6 +29,7 @@ class Method:
     args = {}
     description: str = ""
     nullable: bool
+    superinterfaces = []
 
     def toJSON(self):
         s: str = ""
@@ -61,6 +62,7 @@ class Method:
         self.args = {}
         self.description = ""
         self.nullable = None
+        self.superinterfaces = []
 
     @classmethod
     def fromtag(cls, tag: Tag, description: str, modifier: str, type: str):
@@ -70,6 +72,7 @@ class Method:
         s.modifier = modifier
         s.args = {}
         s.nullable = None
+        s.superinterfaces = []
 
         method_parts: Match[str] = re.search(r"(.*?)\((.*?)\)", tag.text.replace("\n",""))
         if method_parts is not None:
@@ -124,14 +127,14 @@ class JavaInterface:
     name: str = ""
     methods: list[Method] = []
     description: str = ""
-    nested_classes: list[JavaClass] = []
+    superinterfaces = []
 
     def __init__(self):
         self.java_import = ""
         self.name = ""
         self.methods = []
         self.description = ""
-        self.nested_classes = []
+        self.superinterfaces = []
 
     def toJSON(self):
         s: str = ""
@@ -149,11 +152,11 @@ class JavaInterface:
             if(i != len(self.methods)-1):
                 s += ", "
             i += 1
-        s += "], \"nested_classes\": ["
+        s += "], \"superinterfaces\": ["
         i = 0
-        for c in self.nested_classes:
-            s += c.toJSON()
-            if(i != len(self.nested_classes)-1):
+        for c in self.superinterfaces:
+            s += "\""+c+"\""
+            if(i != len(self.superinterfaces)-1):
                 s += ", "
             i += 1
         s += "]}"
@@ -205,7 +208,7 @@ class JavaEnum:
             if(i != len(self.methods)-1):
                 s += ", "
             i += 1
-        s += "], \"nested_classes\": ["
+        s += "], \"constants\": ["
         for c in self.constants:
             s += c.toJSON()
             if(i != len(self.constants)-1):
@@ -242,7 +245,7 @@ class Javadoc:
                         return
 
                 methods = []
-                nested_classes = []
+                superinterfaces = []
 
                 modifier_tags: ResultSet = method_table.find_all("div", {"class": "col-first"})
                 method_tags: ResultSet = method_table.find_all("div", {"class": "col-second"})
@@ -274,28 +277,40 @@ class Javadoc:
                         modifier = modifier_parts[0]
                         type = modifier_parts[1]
 
-                    print(type)
-                    if type == "class":
-                        c = JavaClass.fromtag(tag, description_tags[i])
-                        print(c)
-                        nested_classes.append(c)
-                    else:
-                        m = Method.fromtag(tag, description_tags[i], modifier, type)
-                        # get the later part of the page that says if it's nullable
-                        for s in section_tags:
-                            if s.find("h3").text == m.name:
-                                annotations = s.find("span",{"class": "annotations"})
-                                if annotations is not None:
-                                    if annotations.find("a").text == "@Nullable":
-                                        m.nullable = True
-                                    if annotations.find("a").text == "@NotNull":
-                                        m.nullable = False
+                    m = Method.fromtag(tag, description_tags[i], modifier, type)
+                    # NULLABLE
+                    # get the later part of the page that says if it's nullable
+                    for s in section_tags:
+                        if s.find("h3").text == m.name:
+                            annotations = s.find("span",{"class": "annotations"})
+                            if annotations is not None:
+                                if annotations.find("a").text == "@Nullable":
+                                    m.nullable = True
+                                if annotations.find("a").text == "@NotNull":
+                                    m.nullable = False
 
-                        methods.append(m)
+                    methods.append(m)
 
                     i += 1
 
                 parent = re.sub(r"(\(.*?\)|<.*?>|\s|\n)", "", parent)
+
+                # SUBCLASSES
+                notes = item_tree.find("dl", {"class": "notes"})
+                # find the list of links under the "All Known Subinterfaces" header
+                dts = notes.find_all("dt")
+                i = 0
+                fi = -1
+                for dt in dts:
+                    if dt.text == "All Superinterfaces:":
+                        fi = i
+                        break
+                    i += 1
+                if(fi != -1):
+                    dd = notes.find_all("dd")[fi]
+                    supinterfaces = dd.find_all("a")
+                    for c in supinterfaces:
+                        superinterfaces.append(c.text)
 
                 match title:
                     case "Class Hierarchy":
@@ -310,7 +325,7 @@ class Javadoc:
                         javainterface = JavaInterface()
                         javainterface.name = parent
                         javainterface.methods = methods
-                        javainterface.nested_classes = nested_classes
+                        javainterface.superinterfaces = superinterfaces
                         description = item_tree.find(id="class-description").find("div",{"class": "block"})
                         if description is not None:
                             javainterface.description = description.text
