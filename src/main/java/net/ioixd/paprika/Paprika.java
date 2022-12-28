@@ -1,4 +1,4 @@
-package net.javaforge.paprika;
+package net.ioixd.paprika;
 
 import org.bukkit.plugin.java.JavaPlugin;
 
