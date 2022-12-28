@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="CompilerConfiguration">
+    <bytecodeTargetLevel target="17">
+      <module name="net.ioixd.paprika.lib" target="18" />
+      <module name="net.ioixd.paprika.lib.main" target="18" />
+      <module name="net.ioixd.paprika.lib.test" target="18" />
+    </bytecodeTargetLevel>
+  </component>
+</project>

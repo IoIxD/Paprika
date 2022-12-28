@@ -28,6 +28,7 @@ class Method:
     ty: str = ""
     args = {}
     description: str = ""
+    nullable: bool
 
     def toJSON(self):
         s: str = ""
@@ -45,9 +46,12 @@ class Method:
             s += "\""+str(key)+"\": \""+str(value)+"\""
             if i != len(self.args.items())-1:
                 s += ", "
+            i += 1
         s += "}, \"description\": \""
         s += self.description.replace("\"","'")
-        s += "\"}"
+        s += "\","
+        s += "\"nullable\": \""+str(self.nullable).lower()+"\""
+        s += "}"
         return s
 
     def __init__(self):
@@ -56,6 +60,7 @@ class Method:
         self.ty = ""
         self.args = {}
         self.description = ""
+        self.nullable = None
 
     @classmethod
     def fromtag(cls, tag: Tag, description: str, modifier: str, type: str):
@@ -64,12 +69,12 @@ class Method:
         s.name = tag.find("a").text
         s.modifier = modifier
         s.args = {}
+        s.nullable = None
 
-        method_parts: Match[str] = re.search(r"(.*?)\((.*?)\)", tag.text)
+        method_parts: Match[str] = re.search(r"(.*?)\((.*?)\)", tag.text.replace("\n",""))
         if method_parts is not None:
             s.name = method_parts.group(1)
             args = method_parts.group(2).split(",")
-
 
             for arg in args:
                 parts = arg.replace("\xa0", " ").split(" ")
@@ -113,22 +118,6 @@ class JavaClass:
         self.name = ""
         self.methods = []
         self.description = ""
-
-    def fromtag(tag: Tag, description: str):
-        s = JavaClass()
-        s.name = tag.find("a", {"class": "member-name-link"}).text
-        javaclass_parts: Match[str] = re.search(r"(.*?)\((.*?)\)", tag.text)
-        if javaclass_parts is not None:
-            s.name = javaclass_parts.group(1)
-            args = javaclass_parts.group(2).split(",")
-            for arg in args:
-                parts = arg.replace("\xa0", " ").split(" ")
-                if(len(parts) == 1):
-                    continue
-                s.args[parts[1]] = parts[0]
-
-        s.description = description.text
-        return s
 
 class JavaInterface:
     java_import: str  = ""
@@ -231,12 +220,12 @@ class Javadoc:
     enumerators: list[JavaEnum] = []
 
     @classmethod
-    def add_item(self, title, item, parent, index):
+    def add_item(self, title, item, path, parent, index):
         # item
         tag: Tag = item.find_all("a")[index]
 
         # scrape the url with information about the item
-        item_url = spigot_url_from_tag(parent, tag)
+        item_url = spigot_url_from_tag(path, parent, tag)
         item_html = get_url(item_url)
         item_tree = BeautifulSoup(item_html, "html.parser")
 
@@ -249,7 +238,8 @@ class Javadoc:
                 if(method_table is None):
                     method_table = item_tree.find(id="nested-class-summary")
                     if(method_table is None):
-                        raise Exception("There was no method or classes table. Did you get a 404?")
+                        print("Warning: There was no method or classes table. Did you get a 404?")
+                        return
 
                 methods = []
                 nested_classes = []
@@ -257,6 +247,7 @@ class Javadoc:
                 modifier_tags: ResultSet = method_table.find_all("div", {"class": "col-first"})
                 method_tags: ResultSet = method_table.find_all("div", {"class": "col-second"})
                 description_tags: ResultSet = method_table.find_all("div", {"class": "col-last"})
+                section_tags: ResultSet = item_tree.find_all("section", {"class": "detail"})
 
                 i = 0
                 for tag in method_tags:
@@ -270,26 +261,37 @@ class Javadoc:
                         continue
 
                     # modifier
-                    modifier_tag = modifier_tags[i]
-
-                    if(modifier_tag.text == "Modifier and Type"):
-                        i += 1
-                        modifier_tag = modifier_tags[i]
+                    modifier_tag = modifier_tags[i].find("code")
 
                     modifier_parts = modifier_tag.text.split(" ")
                     type: str = ""
                     modifier: str = ""
+
                     if(len(modifier_parts) == 1):
-                        modifier = "package-private"
-                        type = modifier_tag.name
+                        modifier = "public"
+                        type = modifier_parts[0]
                     else:
                         modifier = modifier_parts[0]
                         type = modifier_parts[1]
 
+                    print(type)
                     if type == "class":
-                        nested_classes.append(JavaClass.fromtag(tag, description_tags[i]))
+                        c = JavaClass.fromtag(tag, description_tags[i])
+                        print(c)
+                        nested_classes.append(c)
                     else:
-                        methods.append(Method.fromtag(tag, description_tags[i], modifier, type))
+                        m = Method.fromtag(tag, description_tags[i], modifier, type)
+                        # get the later part of the page that says if it's nullable
+                        for s in section_tags:
+                            if s.find("h3").text == m.name:
+                                annotations = s.find("span",{"class": "annotations"})
+                                if annotations is not None:
+                                    if annotations.find("a").text == "@Nullable":
+                                        m.nullable = True
+                                    if annotations.find("a").text == "@NotNull":
+                                        m.nullable = False
+
+                        methods.append(m)
 
                     i += 1
 
@@ -413,22 +415,32 @@ class Javadoc:
         s += "]}"
         return s
 
-def spigot_url_from_tag(parent: str, tag: Tag) -> str:
+    def __add__(self, doc2):
+        if(type(doc2) != type(self)):
+            raise Exception("Cannot concatenate %s to Javadoc" % type(doc2))
+        doc = Javadoc()
+        for c in (self.classes + doc2.classes):
+            doc.classes.append(c)
+        for i in (self.interfaces + doc2.interfaces):
+            doc.interfaces.append(i)
+        for e in (self.enumerators + doc2.enumerators):
+            doc.enumerators.append(e)
+        return doc
+
+def spigot_url_from_tag(path: str, parent: str, tag: Tag) -> str:
     if tag is None:
         raise Exception("tag provided is NoneType")
     parent = parent.replace("."+tag.text, "")
     parent_path = parent.replace(".","/")
     parent_path = re.sub(r"(\(.*?\)|<.*?>|\s|\n)", "", parent_path)
 
-    return "https://hub.spigotmc.org/javadocs/spigot/org/bukkit/"+tag["href"]
+    return path+tag["href"]
 
 def parse_javadoc(url: str) -> Javadoc:
     html = get_url(url)
     tree = BeautifulSoup(html, "html.parser")
-    # validate it
-    h2 = tree.find_all("h2", {"title": "Class Hierarchy"})
-    if(len(h2) <= 0):
-        raise Exception("Invalid page given; html does not have a header named 'Class Hierarchy'")
+    path = url.replace("package-tree.html","")
+
     # ok get all the lists and put them into the class
     doc = Javadoc()
     sections = tree.find_all("section", {"class": "hierarchy"})
@@ -450,7 +462,7 @@ def parse_javadoc(url: str) -> Javadoc:
                 parent = parent_parts[i]
                 if(parent == ""):
                     continue
-                doc.add_item(title, item, parent, i)
+                doc.add_item(title, item, path, parent, i)
                 i += 1
 
     return doc
