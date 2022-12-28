@@ -69,6 +69,7 @@ dependencies {
     // Here are some opinionated dependencies that might help you with your plugin development:
 
     implementation 'com.google.code.gson:gson:2.10'
+    implementation 'org.luaj:luaj-jse:3.0.1'
 
     // Test dependencies
     testImplementation 'org.junit.jupiter:junit-jupiter:5.8.1'
