@@ -28,12 +28,7 @@ else:
     print("unsafe_lib.json not found, creating")
     print("parsing the main package tree")
     doc = gen_json.parse_javadoc("https://hub.spigotmc.org/javadocs/spigot/org/bukkit/package-tree.html")
-    """
-    print("parsing the profile package tree")
-    doc2 = gen_json.parse_javadoc("https://hub.spigotmc.org/javadocs/spigot/org/bukkit/profile/package-tree.html")
-    print("adding them")
-    doc += doc2
-    """
+
     unsafe_lib_body = doc.toJSON().replace("\n","",99999999)
     f = open("unsafe_lib.json", "w")
     f.write(unsafe_lib_body)
@@ -73,21 +68,97 @@ public class UnsafeLibrary {
 
 # object construction map
 
+world_interface = None
+server_interface = None
+#player_interface = None
+
+# first we want to pick out the world, server, and player interfaces for later.
+for i in unsafe_lib["interfaces"]:
+    name_parts = i["name"].split(".")
+    name_raw = name_parts[len(name_parts)-1]
+    if(name_raw == "World"):
+        world_interface = i
+
+    if(name_raw == "Server"):
+        server_interface = i
+
+    if world_interface is not None and server_interface is not None:
+        break
+
+if world_interface is None:
+    raise Exception("World interface not found")
+if server_interface is None:
+    raise Exception("Server interface not found")
+#if player_interface is None:
+#    raise Exception("Player interface not found")
+
+already_in = []
+
 for i in unsafe_lib["interfaces"]:
     name_parts = i["name"].split(".")
     name_raw = name_parts[len(name_parts)-1]
 
+    print("adding "+name_raw)
+    if name_raw in already_in:
+        print("already in")
+        continue
+
     # the tricky thing is that "abstract methods can't be instated".
-    # so for these functions we have to return anonymous, non-abstract objects that implement
+
+    # so before anything else, we want to exclude some objects.
+    # we want to exclude world, server, and player...
+    if(name_raw == "World" or name_raw == "Server" or name_raw == "Player"):
+        continue
+
+    skip = False
+    # and we want to exclude objects that can be obtained via those,
+    # as well as any that are "subinterfaces" of them.
+
+    for m in world_interface["methods"]:
+        mname_parts = m["name"].split(".")
+        mname_raw = mname_parts[len(mname_parts)-1]
+        if mname_raw == "get"+name_raw:
+            print("skipping "+name_raw)
+            skip = True
+            break
+    for inter in world_interface["superinterfaces"]:
+        if inter == name_raw:
+            print("skipping "+name_raw)
+            skip = True
+            break
+
+    if(skip):
+        continue
+
+    for m in server_interface["methods"]:
+        mname_parts = m["name"].split(".")
+        mname_raw = mname_parts[len(mname_parts)-1]
+        if mname_raw == "get"+name_raw:
+            print("skipping "+name_raw)
+            skip = True
+            break
+
+    for inter in server_interface["superinterfaces"]:
+        if inter == name_raw:
+            print("skipping "+name_raw)
+            skip = True
+            break
+
+    if(skip):
+        continue
+
+    has_set: bool = False
+    buf: str = ""
+
+    # for the rest of the functions we have to return anonymous, non-abstract objects that implement
     # the abstract ones.
 
-    f.write("""
+    buf += """
         {name} construct{nameraw}(String json) {{
             {nameraw} obj = new {nameraw}() {{
             """.format(name=i["name"],
                         nameraw=name_raw,
             )
-        )
 
     # get the interfaces that correspond to its "subinterfaces", if any
     submethods = []
@@ -117,16 +188,15 @@ for i in unsafe_lib["interfaces"]:
         name = m["name"]
 
         if(m["nullable"] == "false"):
-            f.write("\n\t\t\t\t@NotNull")
+            buf += "\n\t\t\t\t@NotNull"
         if(m["nullable"] == "true"):
-            f.write("\n\t\t\t\t@Nullable")
+            buf += "\n\t\t\t\t@Nullable"
         if(m["nullable"] == "None"):
-            f.write("\n\t\t\t\t@Override")
+            buf += "\n\t\t\t\t@Override"
 
-        f.write("""
+        buf += """
                 {mod} {ty} {name}({args}) {{
         """.format(mod=m["modifier"],ty=m["ty"],name=name,args=args)
-        )
 
         # what we want to do now depends on the type of method.
 
@@ -145,20 +215,21 @@ for i in unsafe_lib["interfaces"]:
             name_stripped = name_stripped[0].lower() + name_stripped[1:]
 
         if(set):
+            has_set = True
             # one argument means its a simple assignment.
             items = m["args"].items()
             if(len(items) == 1):
                 key = list(m["args"].keys())[0]
                 value = list(m["args"].values())[0]
-                f.write("\t\t\t{name} = {value};".format(name=name_stripped,value=key))
-                f.write("""
+                buf += "\t\t\tthis.{name} = {value};".format(name=name_stripped,value=key)
+                buf += """
                 }
-                """)
+                """
                 if(name_stripped in added_variables):
                     continue
-                f.write("""
+                buf += """
                 {mod} {ty} {name};
-            """.format(mod=m["modifier"],ty=value,value=key,name=name_stripped))
+            """.format(mod=m["modifier"],ty=value,value=key,name=name_stripped)
                 added_variables.append(name_stripped)
                 continue
             # multiple arguments is a weird case that needs to be investigated.
@@ -167,37 +238,45 @@ for i in unsafe_lib["interfaces"]:
             # no argument means its a simple return.
             items = m["args"].items()
             if(len(items) == 0):
-                f.write("\t\t\treturn {name};\n\t\t\t}}".format(name=name_stripped))
+                buf += "\t\t\treturn {name};\n\t\t\t\t}}".format(name=name_stripped)
                 if(name_stripped in added_variables):
                     continue
-                f.write("""
+                buf += """
                 {mod} {ty} {name};
-        """.format(mod=m["modifier"],ty=m["ty"],name=name_stripped))
+        """.format(mod=m["modifier"],ty=m["ty"],name=name_stripped)
                 added_variables.append(name_stripped)
                 continue
             # multiple arguments is a weird case that needs to be investigated.
 
         # if we're at this point, we've reached an exception to the naming rule. do nothing.
-        f.write("\t\t\t/* TODO */\n\t\t\t\t}")
+        buf += "\t\t\t/* TODO */\n\t\t\t\t}"
 
         """
             TODO:
-                - begrudgingly implement a "patches" system for functions that aren't generic.
+                - begrudgingly implement a "patches" system for methods that aren't generic.
+                - generic "serialize" method
+                - "add___"; construct the return object using the arguments given and add it to the relevant set in the function.
                 -
 
         """
 
     # TODO: object modification via the provided json
 
-    f.write("""
+    buf += """
             };
             return obj;
         }
-    """)
+    """
+
+    # if we didn't get any setter method from that, there's nothing we can
+    # get from this method. skip it.
+    if(has_set):
+        f.write(buf)
+        already_in.append(name_raw)
 
 f.write("""
     }
-    public void callFunction(String funcName, String[] args) {
+    public void callFunction(World world, Server server, Player player, String funcName, String[] args) {
         switch(funcName) {
 """)
 

@@ -1,4 +1,5 @@
 # https://hub.spigotmc.org/javadocs/spigot/org/bukkit/package-tree.html
+# https://hub.spigotmc.org/javadocs/spigot/overview-tree.html
 
 import requests, re, os
 from re import Match
@@ -228,7 +229,7 @@ class Javadoc:
         tag: Tag = item.find_all("a")[index]
 
         # scrape the url with information about the item
-        item_url = spigot_url_from_tag(path, parent, tag)
+        item_url = spigot_url_from_tag(path, tag)
         item_html = get_url(item_url)
         item_tree = BeautifulSoup(item_html, "html.parser")
 
@@ -442,12 +443,9 @@ class Javadoc:
             doc.enumerators.append(e)
         return doc
 
-def spigot_url_from_tag(path: str, parent: str, tag: Tag) -> str:
+def spigot_url_from_tag(path: str, tag: Tag) -> str:
     if tag is None:
         raise Exception("tag provided is NoneType")
-    parent = parent.replace("."+tag.text, "")
-    parent_path = parent.replace(".","/")
-    parent_path = re.sub(r"(\(.*?\)|<.*?>|\s|\n)", "", parent_path)
 
     return path+tag["href"]
 
@@ -478,7 +476,20 @@ def parse_javadoc(url: str) -> Javadoc:
                 if(parent == ""):
                     continue
                 doc.add_item(title, item, path, parent, i)
-                i += 1
 
     return doc
 
+def parse_javadoc_page(url: str) -> Javadoc:
+    html = get_url(url)
+    tree = BeautifulSoup(html, "html.parser")
+
+    url_parts = url.split("/")
+    path = url_parts[0:len(url_parts)-2]
+    parent = url_parts[len(url_parts)-2:]
+
+    tag = BeautifulSoup.new_tag("a")
+    tag["href"] = parent
+    item = tag
+
+    doc = Javadoc()
+    doc.add_item("Class Hierarchy", item, path, parent, 0)
