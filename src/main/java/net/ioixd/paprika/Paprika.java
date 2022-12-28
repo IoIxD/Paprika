@@ -7,7 +7,7 @@ import java.util.Arrays;
 public class Paprika extends JavaPlugin {
 
     public void onEnable() {
-        UnsafeLibrary lib = new UnsafeLibrary();
+        Bridge lib = new Bridge();
         try {
             lib.callFunction(
                     "org.bukkit.plugin.PluginLogger",

@@ -8,11 +8,11 @@ import com.google.gson.*;
 import com.google.gson.reflect.TypeToken;
 import org.bukkit.plugin.Plugin;
 
-public class UnsafeLibrary {
+public class Bridge {
 
     Gson gson;
 
-    UnsafeLibrary() {
+    Bridge() {
         gson = new Gson();
     }
 
