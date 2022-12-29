@@ -70,6 +70,7 @@ dependencies {
 
     implementation 'com.google.code.gson:gson:2.10'
     implementation 'org.luaj:luaj-jse:3.0.1'
+    implementation 'io.github.classgraph:classgraph:4.8.153'
 
     // Test dependencies
     testImplementation 'org.junit.jupiter:junit-jupiter:5.8.1'

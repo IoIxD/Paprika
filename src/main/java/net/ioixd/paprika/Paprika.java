@@ -26,7 +26,6 @@ public class Paprika extends JavaPlugin {
 
         // command for executing lua commands.
         this.getCommand("lua").setExecutor(new LuaFunctionCommand(lua));
-
     }
 
     @Override

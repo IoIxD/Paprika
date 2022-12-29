@@ -2,8 +2,16 @@ package net.ioixd.paprika;
 
 import java.lang.reflect.*;
 import java.util.*;
+import java.util.regex.Pattern;
+
 import com.google.gson.*;
+import org.bukkit.event.Event;
+import org.bukkit.event.Listener;
+import org.bukkit.plugin.EventExecutor;
 import org.bukkit.plugin.Plugin;
+import org.luaj.vm2.*;
+
+import io.github.classgraph.*;
 
 public class Bridge {
 
@@ -32,7 +40,7 @@ public class Bridge {
         // get the relevant method now
         Method method = cls.getMethod(funcName, final_arg_classes);
         // and get its parent.
-        Object obj = forceInstantiate(cls, plugin);
+        Object obj = classFromName(cls.getName(), plugin);
 
         method.invoke(obj, final_args);
     }
@@ -42,42 +50,63 @@ public class Bridge {
         callFunction(cls.getClass(),funcName,json,plugin);
     }
 
-    public Object forceInstantiate(Class<?> cls, Plugin plugin) throws Exception {
-        // see if we can or have to get it via a global
-        Object o = classFromName(cls.getName(),plugin);
-        if(o != null) {
-            return o;
-        }
-        // if not then try and construct it (and see what fun error we get!).
+    public static LuaTable objectToLuaTable(Object object) {
+        LuaTable table = new LuaTable();
+        // see what getters the object has
+        Class<?> cls = object.getClass();
+        Method[] methods = cls.getMethods();
+        for(Method method : methods) {
+            if(method.getName().startsWith("get")) {
+                // get the value in question and add it to the table.
 
-        Constructor<?>[] constructors = cls.getDeclaredConstructors();
-        if(constructors.length == 0) {
-            throw new Exception(cls.getName()+" has no constructors.");
+                // if it requires values to obtain, skip it for now.
+                if(method.getParameters().length >= 1) {
+                    continue;
+                }
+
+                method.setAccessible(true); // :TROLL:
+
+                // convert the method name a to snake case field name
+                String name = method.getName().replace("get","");
+                Pattern.compile("([A-Z])").matcher(name).replaceAll("_$1");
+                name = name.toLowerCase();
+
+                // run the method to get the value and return it as a lua value
+                Object value;
+                try {
+                    value = method.invoke(object);
+                } catch(IllegalAccessException ex) {
+                    // WHAT
+                    ex.printStackTrace();
+                    continue;
+                } catch (InvocationTargetException ex) {
+                    ex.printStackTrace();
+                    continue;
+                }
+
+                table.set(name, objectToLuaValue(value));
+            };
         }
-        Constructor<?> constructor = constructors[0];
-        constructor.setAccessible(true);
-        Vector<Object> args = new Vector<>();
-        for(Parameter arg : constructor.getParameters()) {
-            Class<?> ty = arg.getType();
-            args.add(forceInstantiate(ty, plugin));
+        return table;
+    }
+
+    public static LuaValue objectToLuaValue(Object object) {
+        System.out.println(object.getClass().getName());
+        switch(object.getClass().getName()) {
+            case "java.lang.Integer":
+                return LuaInteger.valueOf((Integer)object);
+            case "java.lang.Boolean":
+                return LuaBoolean.valueOf((Boolean)object);
+            case "java.lang.Double":
+                return LuaNumber.valueOf((double)object);
+            case "java.lang.String":
+                return LuaString.valueOf((String)object);
+            case "java.lang.Enum":
+                return LuaString.valueOf((object).toString());
         }
-        Object obj;
-        try {
-            obj = constructor.newInstance(args);
-        } catch(IllegalArgumentException ex) {
-            System.out.println(constructor);
-            obj = constructor.newInstance();
-        } catch(InstantiationException ex) {
-            Class<?> lol = constructor.getClass().asSubclass(Object.class);
-            if(lol.getTypeName() == "java.lang.reflect.Constructor") {
-                // nope
-                obj = cls;
-            } else {
-                obj = forceInstantiate(lol, plugin);
-            }
-        }
-        return obj;
-    };
+        // if we're here, then it's an object that needs to be converted manually.
+        return objectToLuaTable(object);
+    }
 
     public Object classFromName(String className, Plugin plugin) {
         switch(className) {
@@ -98,4 +127,34 @@ public class Bridge {
         return null;
     }
 
+    public Object[] getEvents() {
+        ClassInfoList events = new ClassGraph()
+                .enableClassInfo()
+                .scan()
+                .getClassInfo(Event.class.getName())
+                .getSubclasses()
+                .filter(info -> !info.isAbstract());
+
+        Vector<Class<?>> theEvents = new Vector<>();
+
+        try {
+            for (ClassInfo event : events) {
+                //noinspection unchecked
+                Class<? extends Event> eventClass = (Class<? extends Event>) Class.forName(event.getName());
+
+                if (Arrays.stream(eventClass.getDeclaredMethods()).anyMatch(method ->
+                        method.getParameterCount() == 0 && method.getName().equals("getHandlers"))) {
+                    theEvents.add(event.getClass());
+                    //We could do this further filtering on the ClassInfoList instance instead,
+                    //but that would mean that we have to enable method info scanning.
+                    //I believe the overhead of initializing ~20 more classes
+                    //is better than that alternative.
+                }
+            }
+        } catch (ClassNotFoundException e) {
+            throw new AssertionError("Scanned class wasn't found", e);
+        }
+
+        return events.toArray();
+    }
 }
