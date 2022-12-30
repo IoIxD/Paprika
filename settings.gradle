@@ -9,7 +9,7 @@
 
 include 'gson:2.10'
 include 'luaj:3.0.2'
-include 'classgraph:4.8.153'
+include 'aspectjrt:1.9.19'
 
 rootProject.name = 'net.ioixd.paprika'
 include('lib')

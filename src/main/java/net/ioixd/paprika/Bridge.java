@@ -11,8 +11,6 @@ import org.bukkit.plugin.EventExecutor;
 import org.bukkit.plugin.Plugin;
 import org.luaj.vm2.*;
 
-import io.github.classgraph.*;
-
 public class Bridge {
 
     Gson gson;
@@ -125,36 +123,5 @@ public class Bridge {
                 return plugin.getLogger();
         }
         return null;
-    }
-
-    public Object[] getEvents() {
-        ClassInfoList events = new ClassGraph()
-                .enableClassInfo()
-                .scan()
-                .getClassInfo(Event.class.getName())
-                .getSubclasses()
-                .filter(info -> !info.isAbstract());
-
-        Vector<Class<?>> theEvents = new Vector<>();
-
-        try {
-            for (ClassInfo event : events) {
-                //noinspection unchecked
-                Class<? extends Event> eventClass = (Class<? extends Event>) Class.forName(event.getName());
-
-                if (Arrays.stream(eventClass.getDeclaredMethods()).anyMatch(method ->
-                        method.getParameterCount() == 0 && method.getName().equals("getHandlers"))) {
-                    theEvents.add(event.getClass());
-                    //We could do this further filtering on the ClassInfoList instance instead,
-                    //but that would mean that we have to enable method info scanning.
-                    //I believe the overhead of initializing ~20 more classes
-                    //is better than that alternative.
-                }
-            }
-        } catch (ClassNotFoundException e) {
-            throw new AssertionError("Scanned class wasn't found", e);
-        }
-
-        return events.toArray();
     }
 }

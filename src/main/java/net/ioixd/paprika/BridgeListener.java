@@ -18,7 +18,7 @@ public class BridgeListener implements Listener {
 
     BridgeListener(Plugin plugin, Lua lua) {
         this.lua = lua;
-        registeredListener = new RegisteredListener(this, (listener, event, objects) -> onEvent(listener, event), EventPriority.NORMAL, plugin, false);
+        registeredListener = new RegisteredListener(this, (listener, event) -> onEvent(listener, event), EventPriority.NORMAL, plugin, false);
         // the HandlerList object doesn't expose its name through anything.
         // so we have to register them all.
         // but we can unregister an event when we detect its not linked to anything.
