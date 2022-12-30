@@ -2,25 +2,44 @@ package net.ioixd.paprika;
 import org.bukkit.ChatColor;
 import org.bukkit.plugin.Plugin;
 import org.luaj.vm2.*;
+import org.luaj.vm2.lib.jse.CoerceJavaToLua;
 import org.luaj.vm2.lib.jse.JsePlatform;
+import java.io.CharArrayReader;
+import java.io.CharArrayWriter;
+import java.io.Reader;
+
+import javax.script.Bindings;
+import javax.script.Compilable;
+import javax.script.CompiledScript;
+import javax.script.ScriptEngine;
+import javax.script.ScriptEngineFactory;
+import javax.script.ScriptEngineManager;
+import javax.script.ScriptException;
+import javax.script.SimpleBindings;
+
+import org.luaj.vm2.LuaValue;
+import org.luaj.vm2.lib.OneArgFunction;
+import org.luaj.vm2.script.LuaScriptEngineFactory;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.PrintStream;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class Lua {
     Plugin plugin;
-    final String functionRegexString = "function (.*?)\\((.*?)\\)";
-    final Pattern functionRegex = Pattern.compile(functionRegexString);
 
     HashMap<String, LuaValue> functions = new HashMap<>();
     Globals globals = null;
 
     PrintStream printStream;
     ByteArrayOutputStream baos;
+
+    CompiledScript script;
+    Bindings sb = new SimpleBindings();
 
     Lua(Plugin plugin) {
         try {
@@ -53,64 +72,38 @@ public class Lua {
         pluginFolder.mkdir();
 
         this.baos = new ByteArrayOutputStream();
-        this.printStream = new PrintStream(this.baos, true, "utf-8");
+        this.printStream = new PrintStream(this.baos, true, StandardCharsets.UTF_8);
         globals.STDOUT = this.printStream;
+
+        StringBuilder buffer = new StringBuilder();
 
         for(File file : pluginFolder.listFiles()) {
             if(file.getName().endsWith(".lua")) {
+                // for debugging, skip any files starting with .
+                if(file.getName().startsWith(".")) {
+                    continue;
+                }
                 // open the file and look for any functions
                 Scanner lineReader = null;
                 lineReader = new Scanner(file);
-                StringBuffer buffer = new StringBuffer();
-                String functionName = "";
-                int i = 0;
                 while(lineReader.hasNextLine()) {
-                    // search for a line matching the function syntax.
                     String line = lineReader.nextLine();
-                    Matcher matcher = functionRegex.matcher(line);
-                    // begin loading a function if we find it.
-                    if(matcher.find()) {
-                        functionName = matcher.group(1);
-                    }
                     buffer.append(line+"\n");
-                    // finish loading it if we reach an end statement
-                    if(line.startsWith("end")) {
-                        if(functionName == "") {
-                            this.plugin.getLogger().warning("Stray end detected in "+file.getName()+" at line "+i);
-                        } else {
-                            this.addFunction(functionName,buffer.toString());
-                            buffer.setLength(0);
-                        }
-                    }
-                    i++;
-                }
-                // if we have anything left over in the buffer, call it.
-                if(!buffer.isEmpty()) {
-                    globals.load(buffer.toString()).call();
                 }
             }
         }
+
+        System.setProperty("org.luaj.debug", "true");
+        org.luaj.vm2.luajc.LuaJC.install(globals);
+
+        ScriptEngine e = new LuaScriptEngineFactory().getScriptEngine();
+        script = ((Compilable) e).compile(buffer.toString());
+        script.eval(sb);
 
         // register lua hooks
         new BridgeListener(this.plugin, this);
     }
 
-    public void addFunction(String functionName, String body) {
-        LuaValue value = this.globals.load(body+"\n"+functionName+"()");
-        // try to add the function to the map.
-        // if it already exists, add an underscore to the name and try
-        // again; this is useful for event handlers.
-        boolean canAdd = false;
-        while(!canAdd) {
-            if(this.functions.containsKey(functionName)) {
-                functionName = functionName+"_";
-            } else {
-                this.functions.put(functionName, value);
-                canAdd = true;
-            }
-        }
-        this.plugin.getLogger().info("Registered "+functionName);
-    }
     public String reload() {
         try {
             load(this.plugin);
@@ -122,31 +115,13 @@ public class Lua {
 
     // execute a function
     public void functionExecute(String functionName, LuaValue ...args) throws Exception {
-        LuaValue func = this.functions.get(functionName);
-        if(func == null) {
-            throw new Exception("Function does not exist");
-        }
-        try {
-            // apparently we can't call a function with more then three args, or a variable amount at that.
-            switch(args.length) {
-                case 0:
-                    func.call();
-                    break;
-                case 1:
-                    func.call(args[0]);
-                    break;
-                case 2:
-                    func.call(args[2]);
-                    break;
-                case 3:
-                    func.call(args[3]);
-                    break;
-                default:
-                    throw new Exception("Cannot call a function with "+args.length+"args.");
-            };
-        } catch(LuaError ex) {
-            this.plugin.getLogger().severe(ex.getMessage());
-            return;
+        LuaFunction func = (LuaFunction) sb.get(functionName);
+        switch (args.length) {
+            case 0 -> func.call();
+            case 1 -> func.call(args[0]);
+            case 2 -> func.call(args[0], args[1]);
+            case 3 -> func.call(args[0], args[1], args[2]);
+            default -> throw new Exception("Too many args, up to three allowed");
         }
         String content = this.baos.toString();
         if(this.baos.toByteArray().length >= 1) {
@@ -163,8 +138,12 @@ public class Lua {
                 try {
                     functionExecute(functionName, args);
                     functionName += "_";
+                } catch(LuaError ex) {
+                    plugin.getLogger().severe(ex.getMessage());
+                    execute = false;
                 } catch(Exception ex) {
                     ex.printStackTrace();
+                    execute = false;
                 }
             } else {
                 execute = false;
@@ -175,11 +154,8 @@ public class Lua {
 
     // check if a function exists
     public boolean functionExists(String functionName) {
-        LuaValue func = this.functions.get(functionName);
-        if(func == null) {
-            return false;
-        }
-        return true;
+        LuaFunction func = (LuaFunction) sb.get(functionName);
+        return func != null;
     }
 
     public String listMinecraftFunctions() {

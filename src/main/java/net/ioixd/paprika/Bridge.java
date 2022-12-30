@@ -10,14 +10,18 @@ import org.bukkit.event.Listener;
 import org.bukkit.plugin.EventExecutor;
 import org.bukkit.plugin.Plugin;
 import org.luaj.vm2.*;
+import org.luaj.vm2.lib.jse.CoerceJavaToLua;
+
+import javax.script.Compilable;
+import javax.script.CompiledScript;
 
 public class Bridge {
 
-    Gson gson;
+    Gson gson = new Gson();
+    Vector<Object> objectBuffer = new Vector<>();
 
-    Bridge() {
-        gson = new Gson();
-    }
+
+    Bridge() {}
 
     public void callFunction(Class<?> cls, String funcName, String json, Plugin plugin) throws Exception {
         // parse the arguments from the json
@@ -48,62 +52,8 @@ public class Bridge {
         callFunction(cls.getClass(),funcName,json,plugin);
     }
 
-    public static LuaTable objectToLuaTable(Object object) {
-        LuaTable table = new LuaTable();
-        // see what getters the object has
-        Class<?> cls = object.getClass();
-        Method[] methods = cls.getMethods();
-        for(Method method : methods) {
-            if(method.getName().startsWith("get")) {
-                // get the value in question and add it to the table.
-
-                // if it requires values to obtain, skip it for now.
-                if(method.getParameters().length >= 1) {
-                    continue;
-                }
-
-                method.setAccessible(true); // :TROLL:
-
-                // convert the method name a to snake case field name
-                String name = method.getName().replace("get","");
-                Pattern.compile("([A-Z])").matcher(name).replaceAll("_$1");
-                name = name.toLowerCase();
-
-                // run the method to get the value and return it as a lua value
-                Object value;
-                try {
-                    value = method.invoke(object);
-                } catch(IllegalAccessException ex) {
-                    // WHAT
-                    ex.printStackTrace();
-                    continue;
-                } catch (InvocationTargetException ex) {
-                    ex.printStackTrace();
-                    continue;
-                }
-
-                table.set(name, objectToLuaValue(value));
-            };
-        }
-        return table;
-    }
-
-    public static LuaValue objectToLuaValue(Object object) {
-        System.out.println(object.getClass().getName());
-        switch(object.getClass().getName()) {
-            case "java.lang.Integer":
-                return LuaInteger.valueOf((Integer)object);
-            case "java.lang.Boolean":
-                return LuaBoolean.valueOf((Boolean)object);
-            case "java.lang.Double":
-                return LuaNumber.valueOf((double)object);
-            case "java.lang.String":
-                return LuaString.valueOf((String)object);
-            case "java.lang.Enum":
-                return LuaString.valueOf((object).toString());
-        }
-        // if we're here, then it's an object that needs to be converted manually.
-        return objectToLuaTable(object);
+    public LuaValue objectToLuaTable(Object object) {
+        return CoerceJavaToLua.coerce(object);
     }
 
     public Object classFromName(String className, Plugin plugin) {

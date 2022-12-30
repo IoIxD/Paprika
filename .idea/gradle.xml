@@ -10,13 +10,11 @@
         <option name="modules">
           <set>
             <option value="$PROJECT_DIR$" />
-            <option value="$PROJECT_DIR$/aspectjrt" />
-            <option value="$PROJECT_DIR$/aspectjrt/1.9.19" />
             <option value="$PROJECT_DIR$/gson" />
             <option value="$PROJECT_DIR$/gson/2.10" />
             <option value="$PROJECT_DIR$/lib" />
             <option value="$PROJECT_DIR$/luaj" />
-            <option value="$PROJECT_DIR$/luaj/3.0.2" />
+            <option value="$PROJECT_DIR$/luaj/3.0-alpha1" />
           </set>
         </option>
       </GradleProjectSettings>

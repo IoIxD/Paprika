@@ -70,7 +70,6 @@ dependencies {
 
     implementation 'com.google.code.gson:gson:2.10'
     implementation 'org.luaj:luaj-jse:3.0.1'
-    implementation 'org.aspectj:aspectjrt:1.9.19'
 
     // Test dependencies
     testImplementation 'org.junit.jupiter:junit-jupiter:5.8.1'
@@ -83,10 +82,9 @@ dependencies {
 shadowJar {
     classifier = ''
     dependencies {
-        include(dependency('co.aikar:acf-paper:0.5.0-SNAPSHOT'))
+        include(dependency('com.google.code.gson:gson:2.10'))
+        include(dependency('org.luaj:luaj-jse:3.0.1'))
     }
-    relocate 'co.aikar.commands', "${packageName}.acf"
-    relocate 'co.aikar.locales', "${packageName}.locales"
 }
 
 tasks.build.dependsOn(shadowJar)
