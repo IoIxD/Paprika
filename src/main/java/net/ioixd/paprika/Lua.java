@@ -1,5 +1,6 @@
 package net.ioixd.paprika;
 import org.bukkit.ChatColor;
+import org.bukkit.command.CommandMap;
 import org.bukkit.plugin.Plugin;
 import org.luaj.vm2.*;
 import org.luaj.vm2.lib.jse.JsePlatform;
@@ -15,10 +16,11 @@ import javax.script.SimpleBindings;
 import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.script.LuaScriptEngineFactory;
 
+import java.lang.reflect.Field;
 import java.util.*;
 
 public class Lua {
-    Plugin plugin;
+    Paprika paprika;
 
     HashMap<String, LuaValue> functions = new HashMap<>();
     Globals globals = null;
@@ -28,34 +30,22 @@ public class Lua {
     CompiledScript script;
     Bindings sb = new SimpleBindings();
 
-    Lua(Plugin plugin) {
+    Lua(Paprika paprika) {
         try {
-            load(plugin);
+            load(paprika);
         } catch(Exception ex) {
             ex.printStackTrace();
         }
-        // wait one second and then reload it.
-        // on cold boots, event listeners aren't registered
-        // the first time, and we have to wait a bit and then
-        // try again.
-        new Thread(() -> {
-            try {
-                Thread.sleep(1000);
-                load(plugin);
-            } catch(Exception ex) {
-                ex.printStackTrace();
-            }
-        }).start();
     }
 
-    public void load(Plugin plugin) throws Exception {
-        this.plugin = plugin;
+    public void load(Paprika paprika) throws Exception {
+        this.paprika = paprika;
         this.functions = new HashMap<>();
 
         // Start the Lua interpreter
         this.globals = JsePlatform.standardGlobals();
 
-        File pluginFolder = plugin.getDataFolder();
+        File pluginFolder = paprika.getDataFolder();
         pluginFolder.mkdir();
 
         if(this.sw != null) {
@@ -66,6 +56,10 @@ public class Lua {
 
         StringBuilder buffer = new StringBuilder();
 
+        final Field bukkitCommandMap = this.paprika.getServer().getClass().getDeclaredField("commandMap");
+        bukkitCommandMap.setAccessible(true);
+        CommandMap commandMap = (CommandMap) bukkitCommandMap.get(this.paprika.getServer());
+
         for(File file : pluginFolder.listFiles()) {
             if(file.getName().endsWith(".lua")) {
                 // for debugging, skip any files starting with .
@@ -73,10 +67,20 @@ public class Lua {
                     continue;
                 }
                 // open the file and look for any functions
-                Scanner lineReader = null;
+                Scanner lineReader;
                 lineReader = new Scanner(file);
                 while(lineReader.hasNextLine()) {
                     String line = lineReader.nextLine();
+                    // look for functions starting with "minecraftCommand..."
+                    if(line.startsWith("function MinecraftCommand")) {
+                        String funcName = line
+                                .replace("function MinecraftCommand","")
+                                .replace("\n","")
+                                .replaceAll("\\((.*?)\\)","")
+                                .toLowerCase();
+                        commandMap.register("paprika", new CustomCommand(funcName, this));
+                    }
+
                     buffer.append(line+"\n");
                 }
             }
@@ -88,12 +92,12 @@ public class Lua {
         e.getContext().setWriter(this.sw);
 
         // register lua hooks
-        new Bridge(this.plugin, this);
+        new Bridge(this.paprika, this);
     }
 
     public String reload() {
         try {
-            load(this.plugin);
+            load(this.paprika);
         } catch(Exception ex) {
             return ChatColor.RED+ex.getMessage();
         }
@@ -115,7 +119,7 @@ public class Lua {
             if(msg.endsWith("\n")) {
                 msg = msg.substring(0,msg.length()-1);
             }
-            plugin.getServer().broadcastMessage(msg);
+            paprika.getServer().broadcastMessage(msg);
             this.sw.getBuffer().setLength(0);
         }
     }
@@ -129,7 +133,7 @@ public class Lua {
                     functionExecute(functionName, args);
                     functionName += "_";
                 } catch(LuaError ex) {
-                    plugin.getLogger().severe(ex.getMessage());
+                    paprika.getLogger().severe(ex.getMessage());
                     execute = false;
                 } catch(Exception ex) {
                     ex.printStackTrace();
