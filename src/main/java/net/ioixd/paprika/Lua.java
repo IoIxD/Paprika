@@ -4,9 +4,8 @@ import org.bukkit.plugin.Plugin;
 import org.luaj.vm2.*;
 import org.luaj.vm2.lib.jse.CoerceJavaToLua;
 import org.luaj.vm2.lib.jse.JsePlatform;
-import java.io.CharArrayReader;
-import java.io.CharArrayWriter;
-import java.io.Reader;
+
+import java.io.*;
 
 import javax.script.Bindings;
 import javax.script.Compilable;
@@ -21,9 +20,6 @@ import org.luaj.vm2.LuaValue;
 import org.luaj.vm2.lib.OneArgFunction;
 import org.luaj.vm2.script.LuaScriptEngineFactory;
 
-import java.io.ByteArrayOutputStream;
-import java.io.File;
-import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.regex.Matcher;
@@ -35,8 +31,7 @@ public class Lua {
     HashMap<String, LuaValue> functions = new HashMap<>();
     Globals globals = null;
 
-    PrintStream printStream;
-    ByteArrayOutputStream baos;
+    StringWriter sw;
 
     CompiledScript script;
     Bindings sb = new SimpleBindings();
@@ -71,9 +66,11 @@ public class Lua {
         File pluginFolder = plugin.getDataFolder();
         pluginFolder.mkdir();
 
-        this.baos = new ByteArrayOutputStream();
-        this.printStream = new PrintStream(this.baos, true, StandardCharsets.UTF_8);
-        globals.STDOUT = this.printStream;
+        if(this.sw != null) {
+            this.sw.close();
+        }
+
+        this.sw = new StringWriter();
 
         StringBuilder buffer = new StringBuilder();
 
@@ -93,12 +90,10 @@ public class Lua {
             }
         }
 
-        System.setProperty("org.luaj.debug", "true");
-        org.luaj.vm2.luajc.LuaJC.install(globals);
-
         ScriptEngine e = new LuaScriptEngineFactory().getScriptEngine();
         script = ((Compilable) e).compile(buffer.toString());
         script.eval(sb);
+        e.getContext().setWriter(this.sw);
 
         // register lua hooks
         new BridgeListener(this.plugin, this);
@@ -123,11 +118,14 @@ public class Lua {
             case 3 -> func.call(args[0], args[1], args[2]);
             default -> throw new Exception("Too many args, up to three allowed");
         }
-        String content = this.baos.toString();
-        if(this.baos.toByteArray().length >= 1) {
-            plugin.getServer().broadcastMessage(content);
+        if(this.sw.toString().length() >= 1) {
+            String msg = this.sw.toString();
+            if(msg.endsWith("\n")) {
+                msg = msg.substring(0,msg.length()-1);
+            }
+            plugin.getServer().broadcastMessage(msg);
+            this.sw.getBuffer().setLength(0);
         }
-        this.baos.reset();
     }
 
     // execute ALL functions with the given name

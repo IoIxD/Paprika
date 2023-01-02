@@ -6,12 +6,6 @@ import org.bukkit.event.HandlerList;
 import org.bukkit.plugin.Plugin;
 import org.bukkit.plugin.RegisteredListener;
 
-import net.ioixd.paprika.Bridge;
-import org.luaj.vm2.LuaValue;
-
-import java.lang.reflect.Constructor;
-import java.lang.reflect.Parameter;
-
 public class BridgeListener implements Listener {
     Lua lua;
     RegisteredListener registeredListener;
@@ -37,8 +31,7 @@ public class BridgeListener implements Listener {
         // check if the corresponding function actually exists, and if it doesn't, unregister
         // this listener.
         if(lua.functionExists(hookName)) {
-            Bridge bridge = new Bridge();
-            lua.functionExecuteAll(hookName, bridge.objectToLuaTable(event));
+            lua.functionExecuteAll(hookName);
         } else {
             HandlerList handler = event.getHandlers();
             handler.unregister(registeredListener);
