@@ -2,7 +2,6 @@ package net.ioixd.paprika;
 import org.bukkit.ChatColor;
 import org.bukkit.plugin.Plugin;
 import org.luaj.vm2.*;
-import org.luaj.vm2.lib.jse.CoerceJavaToLua;
 import org.luaj.vm2.lib.jse.JsePlatform;
 
 import java.io.*;
@@ -11,19 +10,12 @@ import javax.script.Bindings;
 import javax.script.Compilable;
 import javax.script.CompiledScript;
 import javax.script.ScriptEngine;
-import javax.script.ScriptEngineFactory;
-import javax.script.ScriptEngineManager;
-import javax.script.ScriptException;
 import javax.script.SimpleBindings;
 
 import org.luaj.vm2.LuaValue;
-import org.luaj.vm2.lib.OneArgFunction;
 import org.luaj.vm2.script.LuaScriptEngineFactory;
 
-import java.nio.charset.StandardCharsets;
 import java.util.*;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 public class Lua {
     Plugin plugin;
@@ -96,7 +88,7 @@ public class Lua {
         e.getContext().setWriter(this.sw);
 
         // register lua hooks
-        new BridgeListener(this.plugin, this);
+        new Bridge(this.plugin, this);
     }
 
     public String reload() {

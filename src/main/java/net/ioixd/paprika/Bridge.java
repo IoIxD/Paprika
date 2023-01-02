@@ -6,11 +6,11 @@ import org.bukkit.event.HandlerList;
 import org.bukkit.plugin.Plugin;
 import org.bukkit.plugin.RegisteredListener;
 
-public class BridgeListener implements Listener {
+public class Bridge implements Listener {
     Lua lua;
     RegisteredListener registeredListener;
 
-    BridgeListener(Plugin plugin, Lua lua) {
+    Bridge(Plugin plugin, Lua lua) {
         this.lua = lua;
         registeredListener = new RegisteredListener(this, this::onEvent, EventPriority.NORMAL, plugin, false);
         // the HandlerList object doesn't expose its name through anything.
