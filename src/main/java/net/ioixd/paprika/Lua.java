@@ -22,13 +22,12 @@ import java.util.*;
 public class Lua {
     Paprika paprika;
 
-    HashMap<String, LuaValue> functions = new HashMap<>();
-    Globals globals = null;
-
     StringWriter sw;
 
     CompiledScript script;
-    Bindings sb = new SimpleBindings();
+    Bindings sb;
+
+    Bridge bridge;
 
     Lua(Paprika paprika) {
         try {
@@ -36,31 +35,35 @@ public class Lua {
         } catch(Exception ex) {
             ex.printStackTrace();
         }
+        // wait one second and then reload it.
+        // on cold boots, event listeners aren't registered
+        // the first time, and we have to wait a bit and then
+        // try again.
+        new Thread(() -> {
+            try {
+                Thread.sleep(1000);
+                load(paprika);
+            } catch(Exception ex) {
+                ex.printStackTrace();
+            }
+        }).start();
     }
 
     public void load(Paprika paprika) throws Exception {
         this.paprika = paprika;
-        this.functions = new HashMap<>();
-
-        // Start the Lua interpreter
-        this.globals = JsePlatform.standardGlobals();
+        this.sb = new SimpleBindings();
 
         File pluginFolder = paprika.getDataFolder();
         pluginFolder.mkdir();
 
-        if(this.sw != null) {
-            this.sw.close();
-        }
-
         this.sw = new StringWriter();
-
         StringBuilder buffer = new StringBuilder();
 
         final Field bukkitCommandMap = this.paprika.getServer().getClass().getDeclaredField("commandMap");
         bukkitCommandMap.setAccessible(true);
         CommandMap commandMap = (CommandMap) bukkitCommandMap.get(this.paprika.getServer());
 
-        for(File file : pluginFolder.listFiles()) {
+        for(File file : Objects.requireNonNull(pluginFolder.listFiles())) {
             if(file.getName().endsWith(".lua")) {
                 // for debugging, skip any files starting with .
                 if(file.getName().startsWith(".")) {
@@ -81,7 +84,7 @@ public class Lua {
                         commandMap.register("paprika", new CustomCommand(funcName, this));
                     }
 
-                    buffer.append(line+"\n");
+                    buffer.append(line).append("\n");
                 }
             }
         }
@@ -92,7 +95,7 @@ public class Lua {
         e.getContext().setWriter(this.sw);
 
         // register lua hooks
-        new Bridge(this.paprika, this);
+        this.bridge = new Bridge(this.paprika);
     }
 
     public String reload() {
@@ -105,15 +108,9 @@ public class Lua {
     }
 
     // execute a function
-    public void functionExecute(String functionName, LuaValue ...args) throws Exception {
+    public void functionExecute(String functionName, LuaValue ...args) {
         LuaFunction func = (LuaFunction) sb.get(functionName);
-        switch (args.length) {
-            case 0 -> func.call();
-            case 1 -> func.call(args[0]);
-            case 2 -> func.call(args[0], args[1]);
-            case 3 -> func.call(args[0], args[1], args[2]);
-            default -> throw new Exception("Too many args, up to three allowed");
-        }
+        func.invoke(args);
         if(this.sw.toString().length() >= 1) {
             String msg = this.sw.toString();
             if(msg.endsWith("\n")) {
@@ -153,18 +150,10 @@ public class Lua {
     }
 
     public String listMinecraftFunctions() {
-        return "none yet";
+        return "todo";
     }
 
     public String listCustomFunctions() {
-        String str = "";
-        for(Map.Entry<String, LuaValue> obj : this.functions.entrySet()) {
-            str += "- "+obj.getKey()+"\n";
-        }
-        return str;
-    }
-
-    public void printHelp() {
-
+        return "todo";
     }
 }

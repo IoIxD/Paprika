@@ -20,7 +20,6 @@ public class CustomCommand extends Command {
         String funcName = name.substring(0, 1).toUpperCase() + name.substring(1);
         this.functionName = "MinecraftCommand"+funcName;
         this.lua = lua;
-        System.out.println("MinecraftCommand"+funcName);
     }
 
     @Override

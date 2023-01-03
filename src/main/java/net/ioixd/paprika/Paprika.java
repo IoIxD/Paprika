@@ -6,12 +6,14 @@ import java.util.Arrays;
 
 public class Paprika extends JavaPlugin {
 
+    Lua lua;
+
     public void onEnable() {
         // start the Lua interpreter
-        Lua lua = new Lua(this);
+        this.lua = new Lua(this);
 
         // command for executing lua commands.
-        this.getCommand("lua").setExecutor(new LuaFunctionCommand(lua));
+        this.getCommand("lua").setExecutor(new LuaFunctionCommand(this));
 
         getLogger().info("Paprika is enabled");
     }

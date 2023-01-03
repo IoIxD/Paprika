@@ -10,17 +10,17 @@ import java.util.Map;
 import java.util.concurrent.Callable;
 
 public class LuaFunctionCommand implements CommandExecutor {
-    Lua lua;
+    Paprika paprika;
 
     Map<String, Callable<String>> commands = new HashMap<>();
-    LuaFunctionCommand(Lua lua) {
-        this.lua = lua;
+    LuaFunctionCommand(Paprika paprika) {
+        this.paprika = paprika;
 
-        this.commands.put("reload", this.lua::reload);
+        this.commands.put("reload", this::reload);
         this.commands.put("help", this::printNativeFunctions);
         this.commands.put("list", this::printListHelp);
-        this.commands.put("list native", this.lua::listMinecraftFunctions);
-        this.commands.put("list custom", this.lua::listCustomFunctions);
+        this.commands.put("list native", this.paprika.lua::listMinecraftFunctions);
+        this.commands.put("list custom", this.paprika.lua::listCustomFunctions);
     }
 
     @Override
@@ -44,14 +44,20 @@ public class LuaFunctionCommand implements CommandExecutor {
             }
         }
 
-        // if that fails, try and search for a function basedd on what they provided.
+        // if that fails, try and search for a function based on what they provided.
         try {
-            lua.functionExecute(args[0]);
+            this.paprika.lua.functionExecute(args[0]);
         } catch(Exception ex) {
             sender.sendMessage(ex.getMessage());
             return false;
         }
         return true;
+    }
+
+    public String reload() {
+        this.paprika.lua = null;
+        this.paprika.lua = new Lua(this.paprika);
+        return "Lua reloaded";
     }
 
     public String printListHelp() {
