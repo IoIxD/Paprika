@@ -45,12 +45,13 @@ public class LuaFunctionCommand implements CommandExecutor {
         }
 
         // if that fails, try and search for a function based on what they provided.
-        try {
+        // TEMPORARILY DISABLED because i need to make it so that event handler functions and functions bound to minecraft commands aren't executable
+        /*try {
             this.paprika.lua.functionExecute(args[0]);
         } catch(Exception ex) {
             sender.sendMessage(ex.getMessage());
             return false;
-        }
+        }*/
         return true;
     }
 
