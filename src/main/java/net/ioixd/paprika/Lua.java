@@ -57,14 +57,16 @@ public class Lua {
         pluginFolder.mkdir();
 
         this.sw = new StringWriter();
-        StringBuilder buffer = new StringBuilder();
 
         final Field bukkitCommandMap = this.paprika.getServer().getClass().getDeclaredField("commandMap");
         bukkitCommandMap.setAccessible(true);
         CommandMap commandMap = (CommandMap) bukkitCommandMap.get(this.paprika.getServer());
 
+        ScriptEngine e = new LuaScriptEngineFactory().getScriptEngine();
+
         for(File file : Objects.requireNonNull(pluginFolder.listFiles())) {
             if(file.getName().endsWith(".lua")) {
+                StringBuilder buffer = new StringBuilder();
                 // for debugging, skip any files starting with .
                 if(file.getName().startsWith(".")) {
                     continue;
@@ -86,12 +88,11 @@ public class Lua {
 
                     buffer.append(line).append("\n");
                 }
+                script = ((Compilable) e).compile(buffer.toString());
+                script.eval(sb);
             }
         }
 
-        ScriptEngine e = new LuaScriptEngineFactory().getScriptEngine();
-        script = ((Compilable) e).compile(buffer.toString());
-        script.eval(sb);
         e.getContext().setWriter(this.sw);
 
         // register lua hooks
@@ -150,10 +151,12 @@ public class Lua {
     }
 
     public String listMinecraftFunctions() {
+
         return "todo";
     }
 
     public String listCustomFunctions() {
+
         return "todo";
     }
 }
