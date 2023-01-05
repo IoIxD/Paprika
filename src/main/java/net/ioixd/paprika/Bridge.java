@@ -13,10 +13,14 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.HashMap;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class Bridge implements Listener {
     Lua lua;
     RegisteredListener registeredListener;
+
+    Pattern upperCase = Pattern.compile("[A-Z]");
 
     Bridge(Paprika paprika) {
         this.lua = paprika.lua;
@@ -59,6 +63,10 @@ public class Bridge implements Listener {
                 event.getClass().getModifiers() != Modifier.PUBLIC) {
             return start;
         }
-        return CoerceJavaToLua.coerce(event);
+        LuaValue val = CoerceJavaToLua.coerce(event);
+        LuaValue mt = new LuaTable();
+        mt.set("__index", new LuaSyntaxToJavaSyntax.Index());
+        val.setmetatable(mt);
+        return val;
     }
 }
