@@ -109,6 +109,14 @@ public class Lua {
         this.bridge = new Bridge(this.paprika);
     }
 
+    public String reload() {
+        try {
+            load(this.paprika, true);
+        } catch(Exception ex) {
+            return ChatColor.RED+ex.getMessage();
+        }
+        return "Reloaded files.";
+    }
     public void broadcastBuffer() {
         if(this.sw.toString().length() >= 1) {
             String msg = this.sw.toString();

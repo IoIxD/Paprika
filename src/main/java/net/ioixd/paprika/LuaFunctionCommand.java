@@ -16,7 +16,7 @@ public class LuaFunctionCommand implements CommandExecutor {
     LuaFunctionCommand(Paprika paprika) {
         this.paprika = paprika;
 
-        this.commands.put("reload", this::reload);
+        this.commands.put("reload", this.paprika.lua::reload);
         this.commands.put("help", this::printNativeFunctions);
         this.commands.put("list", this::printListHelp);
         this.commands.put("list native", this.paprika.lua::listMinecraftFunctions);
