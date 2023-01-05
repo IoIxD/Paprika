@@ -81,8 +81,7 @@ public class Lua {
                         String funcName = line
                                 .replace("function MinecraftCommand","")
                                 .replace("\n","")
-                                .replaceAll("\\((.*?)\\)","")
-                                .toLowerCase();
+                                .replaceAll("\\((.*?)\\)","");
                         commandMap.register("paprika", new CustomCommand(funcName, this));
                     }
 
