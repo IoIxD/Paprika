@@ -66,6 +66,8 @@ public class Bridge implements Listener {
         LuaValue val = CoerceJavaToLua.coerce(event);
         LuaValue mt = new LuaTable();
         mt.set("__index", new LuaSyntaxToJavaSyntax.Index());
+        mt.set("__newindex", new LuaSyntaxToJavaSyntax.NewIndex());
+
         val.setmetatable(mt);
         return val;
     }
