@@ -59,22 +59,6 @@ public class Bridge implements Listener {
                 event.getClass().getModifiers() != Modifier.PUBLIC) {
             return start;
         }
-        LuaTable metatable = new LuaTable();
-        metatable.set("__index", new IndexInterceptor());
-        start.setmetatable(metatable);
         return CoerceJavaToLua.coerce(event);
-    }
-    public static class IndexInterceptor extends TwoArgFunction {
-        @Override
-        public LuaValue call(LuaValue table, LuaValue key) {
-            String funcName = key.toString().substring(0,1).toUpperCase() + key.toString().substring(1);
-            LuaValue func = table.get(funcName);
-            System.out.println(funcName);
-            if(func == null) {
-                return LuaValue.NIL;
-            } else {
-                return func.call();
-            }
-        }
     }
 }

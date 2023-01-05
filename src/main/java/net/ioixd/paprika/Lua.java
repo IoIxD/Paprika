@@ -160,3 +160,19 @@ public class Lua {
         return "todo";
     }
 }
+
+/*
+        metatable.set("__index", new LuaFunction() {
+            @Override
+            public LuaValue call(LuaValue table, LuaValue key) {
+                String funcName = key.toString().substring(0,1).toUpperCase() + key.toString().substring(1);
+                LuaValue func = table.get(funcName);
+                System.out.println(funcName);
+                if(func == null) {
+                    return LuaValue.NIL;
+                } else {
+                    return func.call();
+                }
+            }
+        });
+ */

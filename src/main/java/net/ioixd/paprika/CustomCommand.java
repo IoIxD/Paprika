@@ -18,20 +18,19 @@ public class CustomCommand extends Command {
     protected CustomCommand(@NotNull String name, Lua lua) {
         super(name);
         String funcName = name.substring(0, 1).toUpperCase() + name.substring(1);
-        this.functionName = "MinecraftCommand"+funcName;
+        this.functionName = "MinecraftCommand"+name;
         this.lua = lua;
     }
 
     @Override
     public boolean execute(@NotNull CommandSender sender, @NotNull String commandLabel, @NotNull String[] args) {
         try {
-            this.lua.functionExecute(functionName);
+            this.lua.functionExecute(this.functionName);
             return true;
-        } catch (LuaError e) {
+        } catch (Exception e) {
+            sender.sendMessage(ChatColor.RED+""+ChatColor.BOLD+"Error executing "+this.functionName);
             sender.sendMessage(ChatColor.RED+e.getMessage());
             return false;
-        } catch (Exception e) {
-            throw new RuntimeException(e);
         }
     }
 }
