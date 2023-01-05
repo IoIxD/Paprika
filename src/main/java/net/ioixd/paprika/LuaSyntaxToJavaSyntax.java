@@ -38,7 +38,12 @@ public class LuaSyntaxToJavaSyntax {
             String newVal = sb.substring(0,1).toUpperCase()+sb.substring(1);
 
             // return the result of a call to a getter method; nil if not existent.
-            return table.method("get"+newVal);
+            LuaValue val = table.method("get"+newVal);
+            if(val == LuaValue.NIL) {
+                return table.method("is"+newVal);
+            } else {
+                return val;
+            }
         }
     }
 
