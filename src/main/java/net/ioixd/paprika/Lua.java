@@ -104,7 +104,6 @@ public class Lua {
             this.broadcastBuffer();
         }
 
-
         // register lua hooks
         this.bridge = new Bridge(this.paprika);
     }
