@@ -78,6 +78,7 @@ public class Lua {
                 .append(apath)
                 .append(sep)
                 .append("?.lua;")
+                .append(findInitFilesInFolder(pluginFolder))
                 .append("\"");
 
         //path.append(luaPackagePathGen(pluginFolder));
@@ -97,6 +98,23 @@ public class Lua {
         this.bridge = new Bridge(this.paprika);
     }
 
+    public String findInitFilesInFolder(File folder) {
+        if(folder.listFiles() == null) {
+            return "";
+        }
+        StringBuilder path = new StringBuilder();
+        File[] files = folder.listFiles();
+        for(File file : files) {
+            if(file.getName().endsWith("init.lua")) {
+                path.append(file.getAbsolutePath())
+                        .append(";");
+            }
+            if(file.listFiles() != null) {
+                path.append(findInitFilesInFolder(file));
+            }
+        }
+        return path.toString();
+    }
     public void evalLuaFilesInFolder(File folder, ScriptEngine e) throws Exception {
         if(folder.listFiles() == null) {
             return;
