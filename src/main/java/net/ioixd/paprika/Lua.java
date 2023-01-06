@@ -147,8 +147,6 @@ public class Lua {
                     }
                     buffer.append(line).append("\n");
                 }
-                boolean doneEvaluating = false;
-                String errorMessage = "hi";
                 String code = buffer.toString();
                 this.script = ((Compilable) e).compile(code);
                 try {

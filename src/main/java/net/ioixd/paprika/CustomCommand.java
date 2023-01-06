@@ -52,6 +52,7 @@ public class CustomCommand extends Command {
                 fileName = fileParts[fileParts.length-1];
                 err.append("at ").append(fileName).append("\n");
             } catch (Exception ex) {
+                // just don't add the file name at all if any exceptions come up
             }
 
             sender.sendMessage(err.toString());
