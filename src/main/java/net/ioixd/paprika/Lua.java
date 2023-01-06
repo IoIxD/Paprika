@@ -150,18 +150,13 @@ public class Lua {
                 boolean doneEvaluating = false;
                 String errorMessage = "hi";
                 String code = buffer.toString();
-                while(errorMessage != null) {
-                    this.script = ((Compilable) e).compile(code);
-                    try {
-                        this.script.eval(this.sb);
-                        this.paprika.getLogger().info("Compiled "+file.getPath());
-                        errorMessage = null;
-                    } catch(LuaError ex) {
-                        this.paprika.getLogger().warning("Skipping "+file.getPath()+"; \n"+ex.getMessage());
-                    }
+                this.script = ((Compilable) e).compile(code);
+                try {
+                    this.script.eval(this.sb);
+                    this.paprika.getLogger().info("Compiled "+file.getPath());
+                } catch(LuaError ex) {
+                    this.paprika.getLogger().warning("Skipping "+file.getPath()+"; \n"+ex.getMessage());
                 }
-
-
             }
             if(file.listFiles() != null) {
                 evalLuaFilesInFolder(file, e);

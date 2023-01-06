@@ -6,6 +6,7 @@ import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.jetbrains.annotations.NotNull;
 import org.luaj.vm2.LuaError;
+import org.luaj.vm2.lib.jse.CoerceJavaToLua;
 
 import java.util.Arrays;
 import java.util.HashMap;
@@ -27,7 +28,7 @@ public class CustomCommand extends Command {
     @Override
     public boolean execute(@NotNull CommandSender sender, @NotNull String commandLabel, @NotNull String[] args) {
         try {
-            this.lua.functionExecute(this.functionName);
+            this.lua.functionExecute(this.functionName, Bridge.fullCoerce(sender), Bridge.fullCoerce(commandLabel), Bridge.fullCoerce(args));
             return true;
         } catch (Exception e) {
             StringBuilder err = new StringBuilder();
