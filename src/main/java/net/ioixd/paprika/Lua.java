@@ -28,6 +28,8 @@ public class Lua {
 
     Bridge bridge;
 
+    CommandMap commandMap;
+
     Lua(Paprika paprika) {
         try {
             load(paprika, true);
@@ -59,7 +61,7 @@ public class Lua {
 
         final Field bukkitCommandMap = this.paprika.getServer().getClass().getDeclaredField("commandMap");
         bukkitCommandMap.setAccessible(true);
-        CommandMap commandMap = (CommandMap) bukkitCommandMap.get(this.paprika.getServer());
+        this.commandMap = (CommandMap) bukkitCommandMap.get(this.paprika.getServer());
 
         ScriptEngine e = new LuaScriptEngineFactory().getScriptEngine();
         e.getContext().setWriter(this.sw);
@@ -68,20 +70,38 @@ public class Lua {
         String apath = pluginFolder.getAbsolutePath();
         char sep = File.separatorChar;
         StringBuilder path = new StringBuilder();
-        path.append("package.path = ");
-        path.append("\""+apath+sep+"?.lua\";");
-        File[] files = pluginFolder.listFiles();
-        for(File file : files) {
-            if(file.isDirectory()) {
-                path.append("\""+file.getAbsolutePath()+sep+"?.lua\";");
-            }
-        }
+
+        path.append("package.path = \"")
+                .append(apath)
+                .append(sep)
+                .append(";")
+                .append(apath)
+                .append(sep)
+                .append("?.lua;")
+                .append("\"");
+
+        //path.append(luaPackagePathGen(pluginFolder));
         this.paprika.getLogger().info(path.toString());
         script = ((Compilable) e).compile(path.toString());
         script.eval(this.sb);
         script.eval(e.getContext());
 
-        for(File file : Objects.requireNonNull(pluginFolder.listFiles())) {
+        evalLuaFilesInFolder(pluginFolder,e);
+
+        if(print) {
+            // any prints that the files did should be printed
+            this.broadcastBuffer();
+        }
+
+        // register lua hooks
+        this.bridge = new Bridge(this.paprika);
+    }
+
+    public void evalLuaFilesInFolder(File folder, ScriptEngine e) throws Exception {
+        if(folder.listFiles() == null) {
+            return;
+        }
+        for(File file : folder.listFiles()) {
             if(file.getName().endsWith(".lua")) {
                 StringBuilder buffer = new StringBuilder();
                 // for debugging, skip any files starting with .
@@ -100,22 +120,17 @@ public class Lua {
                                 .replace("function MinecraftCommand","")
                                 .replace("\n","")
                                 .replaceAll("\\((.*?)\\)","");
-                        commandMap.register("paprika", new CustomCommand(funcName, this));
+                        this.commandMap.register("paprika", new CustomCommand(funcName, this));
                     }
                     buffer.append(line).append("\n");
                 }
-                script = ((Compilable) e).compile(buffer.toString());
-                script.eval(this.sb);
+                this.script = ((Compilable) e).compile(buffer.toString());
+                this.script.eval(this.sb);
+            }
+            if(file.listFiles() != null) {
+                evalLuaFilesInFolder(file, e);
             }
         }
-
-        if(print) {
-            // any prints that the files did should be printed
-            this.broadcastBuffer();
-        }
-
-        // register lua hooks
-        this.bridge = new Bridge(this.paprika);
     }
 
     public String reload() {
@@ -126,6 +141,7 @@ public class Lua {
         }
         return "Reloaded files.";
     }
+
     public void broadcastBuffer() {
         if(this.sw.toString().length() >= 1) {
             String msg = this.sw.toString();
