@@ -65,9 +65,19 @@ public class Lua {
         e.getContext().setWriter(this.sw);
 
         // set the package path
-        String path = "package.path = \""+pluginFolder.getAbsolutePath()+File.separatorChar+"?.lua\"";
-        this.paprika.getLogger().info(path);
-        script = ((Compilable) e).compile(path);
+        String apath = pluginFolder.getAbsolutePath();
+        char sep = File.separatorChar;
+        StringBuilder path = new StringBuilder();
+        path.append("package.path = ");
+        path.append("\""+apath+sep+"?.lua\";");
+        File[] files = pluginFolder.listFiles();
+        for(File file : files) {
+            if(file.isDirectory()) {
+                path.append("\""+file.getAbsolutePath()+sep+"?.lua\";");
+            }
+        }
+        this.paprika.getLogger().info(path.toString());
+        script = ((Compilable) e).compile(path.toString());
         script.eval(this.sb);
         script.eval(e.getContext());
 
