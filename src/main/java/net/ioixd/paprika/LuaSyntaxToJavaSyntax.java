@@ -24,6 +24,11 @@ public class LuaSyntaxToJavaSyntax {
                 return NIL;
             }
 
+            // prevent stack overflows
+            if(key.toString().toLowerCase().startsWith("getget") || key.toString().toLowerCase().startsWith("isis")) {
+                return NIL;
+            }
+
             // convert the value we got to camel case.
             String text = key.toString();
             Matcher m = snakeCase.matcher(text);
@@ -40,7 +45,11 @@ public class LuaSyntaxToJavaSyntax {
             // return the result of a call to a getter method; nil if not existent.
             LuaValue val = table.method("get"+newVal);
             if(val == LuaValue.NIL) {
-                return table.method("is"+newVal);
+                val = table.method("is"+newVal);
+            }
+            Bridge.addHandlers(val);
+            if(val.isfunction()) {
+                return val.call();
             } else {
                 return val;
             }

@@ -54,7 +54,7 @@ public class Bridge implements Listener {
         }
     }
 
-    public LuaValue fullCoerce(Object event) {
+    public static LuaValue fullCoerce(Object event) {
         if(event == null) {
             return LuaValue.NIL;
         }
@@ -64,11 +64,20 @@ public class Bridge implements Listener {
             return start;
         }
         LuaValue val = CoerceJavaToLua.coerce(event);
-        LuaValue mt = new LuaTable();
+        addHandlers(val);
+        return val;
+    }
+
+    public static void addHandlers(LuaValue val) {
+        if(!val.istable() && !val.isuserdata()) {
+            return;
+        }
+        LuaValue mt = val.getmetatable();
+        if(mt == null) {
+            mt = new LuaTable();
+        }
         mt.set("__index", new LuaSyntaxToJavaSyntax.Index());
         mt.set("__newindex", new LuaSyntaxToJavaSyntax.NewIndex());
-
         val.setmetatable(mt);
-        return val;
     }
 }
