@@ -73,6 +73,7 @@ public class Lua {
         char sep = File.separatorChar;
         StringBuilder path = new StringBuilder();
 
+        this.paprika.getLogger().info("Resolving package path");
         path.append("package.path = \"")
                 .append(apath)
                 .append(sep)
@@ -89,6 +90,7 @@ public class Lua {
         script.eval(this.sb);
         script.eval(e.getContext());
 
+        this.paprika.getLogger().info("Compiling files");
         evalLuaFilesInFolder(pluginFolder,e);
 
         if(print) {
@@ -123,6 +125,7 @@ public class Lua {
         }
         for(File file : folder.listFiles()) {
             if(file.getName().endsWith(".lua")) {
+                this.paprika.getLogger().info("Compiling "+file.getPath());
                 StringBuilder buffer = new StringBuilder();
                 // for debugging, skip any files starting with .
                 if(file.getName().startsWith(".")) {
@@ -145,22 +148,16 @@ public class Lua {
                     buffer.append(line).append("\n");
                 }
                 boolean doneEvaluating = false;
+                String errorMessage = "hi";
                 String code = buffer.toString();
-                while(!doneEvaluating) {
+                while(errorMessage != null) {
                     this.script = ((Compilable) e).compile(code);
                     try {
                         this.script.eval(this.sb);
+                        this.paprika.getLogger().info("Compiled "+file.getPath());
+                        errorMessage = null;
                     } catch(LuaError ex) {
-                        // is it "struggling to load an unknown module"?
-                        if(ex.getMessage().contains("loop or previous error loading module")) {
-                            Matcher m = Pattern.compile("loading module \'(.*?)\'").matcher(buffer.toString());
-                            if(m.find()) {
-                                String problemFile = m.group(1);
-                                code = code.replace(problemFile, problemFile+"/init");
-                            }
-                        }
-                    } finally {
-                        doneEvaluating = true;
+                        this.paprika.getLogger().warning("Skipping "+file.getPath()+"; \n"+ex.getMessage());
                     }
                 }
 
