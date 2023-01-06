@@ -17,6 +17,8 @@ import org.luaj.vm2.script.LuajContext;
 
 import java.lang.reflect.Field;
 import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class Lua {
     Paprika paprika;
@@ -106,8 +108,8 @@ public class Lua {
         File[] files = folder.listFiles();
         for(File file : files) {
             if(file.getName().endsWith("init.lua")) {
-                path.append(file.getAbsolutePath())
-                        .append(";");
+                path.append(file.getAbsolutePath().replace("init.lua","?.lua"))
+                    .append(";");
             }
             if(file.listFiles() != null) {
                 path.append(findInitFilesInFolder(file));
@@ -142,8 +144,27 @@ public class Lua {
                     }
                     buffer.append(line).append("\n");
                 }
-                this.script = ((Compilable) e).compile(buffer.toString());
-                this.script.eval(this.sb);
+                boolean doneEvaluating = false;
+                String code = buffer.toString();
+                while(!doneEvaluating) {
+                    this.script = ((Compilable) e).compile(code);
+                    try {
+                        this.script.eval(this.sb);
+                    } catch(LuaError ex) {
+                        // is it "struggling to load an unknown module"?
+                        if(ex.getMessage().contains("loop or previous error loading module")) {
+                            Matcher m = Pattern.compile("loading module \'(.*?)\'").matcher(buffer.toString());
+                            if(m.find()) {
+                                String problemFile = m.group(1);
+                                code = code.replace(problemFile, problemFile+"/init");
+                            }
+                        }
+                    } finally {
+                        doneEvaluating = true;
+                    }
+                }
+
+
             }
             if(file.listFiles() != null) {
                 evalLuaFilesInFolder(file, e);
