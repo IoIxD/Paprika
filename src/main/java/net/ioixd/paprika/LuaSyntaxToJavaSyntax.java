@@ -9,6 +9,7 @@ import org.luaj.vm2.lib.jse.CoerceJavaToLua;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.util.HashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -17,11 +18,16 @@ public class LuaSyntaxToJavaSyntax {
     // __index metamethod for mapping getters
     public static class Index extends TwoArgFunction {
         Pattern snakeCase = Pattern.compile("(_)([A-Za-z])");
+        HashMap<LuaValue, LuaValue> cache = new HashMap<>();
 
         @Override
         public LuaValue call(LuaValue table, LuaValue key) {
             if(table == NIL) {
                 return NIL;
+            }
+
+            if(cache.get(key) != null) {
+                return cache.get(key);
             }
 
             // prevent stack overflows
@@ -48,11 +54,14 @@ public class LuaSyntaxToJavaSyntax {
                 val = table.method("is"+newVal);
             }
             Bridge.addHandlers(table, val);
+            LuaValue v;
             if(val.isfunction()) {
-                return val.call();
+                v = val.call();
             } else {
-                return val;
+                v = val;
             }
+            this.cache.put(key, v);
+            return v;
         }
     }
 
@@ -148,6 +157,7 @@ public class LuaSyntaxToJavaSyntax {
     }
 
     // __pairs
+
 
     // __lpairs
 
