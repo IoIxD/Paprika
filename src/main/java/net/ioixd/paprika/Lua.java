@@ -65,8 +65,11 @@ public class Lua {
         bukkitCommandMap.setAccessible(true);
         this.commandMap = (CommandMap) bukkitCommandMap.get(this.paprika.getServer());
 
+        org.luaj.vm2.luajc.LuaJC.install(JsePlatform.standardGlobals());
+
         ScriptEngine e = new LuaScriptEngineFactory().getScriptEngine();
         e.getContext().setWriter(this.sw);
+
 
         // set the package path
         String apath = pluginFolder.getAbsolutePath();
