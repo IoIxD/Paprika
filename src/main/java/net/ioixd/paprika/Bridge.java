@@ -3,17 +3,10 @@ import org.bukkit.event.Event;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.HandlerList;
-import org.bukkit.plugin.Plugin;
 import org.bukkit.plugin.RegisteredListener;
 import org.luaj.vm2.*;
-import org.luaj.vm2.lib.TwoArgFunction;
 import org.luaj.vm2.lib.jse.CoerceJavaToLua;
-
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
-import java.util.HashMap;
-import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class Bridge implements Listener {
@@ -79,7 +72,7 @@ public class Bridge implements Listener {
         mt.set("__index", new LuaSyntaxToJavaSyntax.Index());
         mt.set("__newindex", new LuaSyntaxToJavaSyntax.NewIndex());
         mt.set("__len", new LuaSyntaxToJavaSyntax.Length(obj));
-        mt.set("__name", LuaString.valueOf("_"+obj.toString()));
+        mt.set("__name", LuaString.valueOf(obj.getClass().getSimpleName()));
         val.setmetatable(mt);
     }
 }

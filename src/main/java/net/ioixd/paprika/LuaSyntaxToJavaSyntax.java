@@ -84,16 +84,20 @@ public class LuaSyntaxToJavaSyntax {
         }
     }
 
-    // __len metamethod for getting the length owf something
+    // __len metamethod for getting the length of something
     public static class Length extends ZeroArgFunction {
         Object ogObject;
-        Paprika paprika;
+
+        LuaValue cachedLength = LuaValue.valueOf(-1);
 
         Length(Object object) {
             this.ogObject = object;
         }
         @Override
         public LuaValue call() {
+            if(cachedLength != LuaValue.valueOf(-1)) {
+                return cachedLength;
+            }
             Object relObject = this.ogObject;
             Class<?> cls = relObject.getClass();
 
@@ -134,14 +138,14 @@ public class LuaSyntaxToJavaSyntax {
             }
             // try and call the method we got.
             try {
-                return CoerceJavaToLua.coerce(methodToCall.invoke(relObject));
+                LuaValue val = CoerceJavaToLua.coerce(methodToCall.invoke(relObject));
+                this.cachedLength = val;
+                return val;
             } catch (Exception e) {
                 throw new LuaError("Couldn't get length for "+relObject.getClass().getName()+": "+e.getMessage());
             }
         }
     }
-
-    // __concat
 
     // __pairs
 
@@ -159,4 +163,5 @@ public class LuaSyntaxToJavaSyntax {
     // __lt
     // __le
 
+    // __concat
 }
