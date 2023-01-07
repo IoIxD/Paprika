@@ -1,6 +1,7 @@
 package net.ioixd.paprika;
 
 import org.luaj.vm2.*;
+import org.luaj.vm2.lib.OneArgFunction;
 import org.luaj.vm2.lib.ThreeArgFunction;
 import org.luaj.vm2.lib.TwoArgFunction;
 import org.luaj.vm2.lib.ZeroArgFunction;
@@ -156,14 +157,42 @@ public class LuaSyntaxToJavaSyntax {
         }
     }
 
-    // __pairs
+    // __pairs - LuaJ actually doesn't support this and the PR that adds it is five years old
+    // but it was reviewed two months ago so I'll keep it.
+    // ...honestly i might just use the repo i found that has the rest of the 5.2 features.
+    public static class Pairs extends OneArgFunction {
+        Object object;
+        LuaTable cached;
 
+        Pairs(Object object) {
+            this.object = object;
+        }
+
+        @Override
+        public LuaValue call(LuaValue table) {
+            if(cached != null) {
+                return cached;
+            }
+            LuaTable newTable = new LuaTable();
+            HashMap<?,?> map;
+            try {
+                map = (HashMap<?,?>)object;
+            } catch (Exception e) {
+                throw new LuaError("tried to index "+object.getClass().getSimpleName()+" as a hashmap");
+            }
+            for(java.util.Map.Entry<?, ?> entry : map.entrySet()) {
+                LuaValue key = CoerceJavaToLua.coerce(entry.getKey());
+                LuaValue val = CoerceJavaToLua.coerce(entry.getValue());
+                newTable.set(key, val);
+            }
+            cached = newTable;
+            return newTable;
+        }
+    }
 
     // __lpairs
 
-    // __close?
-
-    // __add?
+    // __add
     // __sub?
     // __mul?
     // __div?

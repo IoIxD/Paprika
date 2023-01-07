@@ -73,6 +73,7 @@ public class Bridge implements Listener {
         mt.set("__newindex", new LuaSyntaxToJavaSyntax.NewIndex());
         mt.set("__len", new LuaSyntaxToJavaSyntax.Length(obj));
         mt.set("__name", LuaString.valueOf(obj.getClass().getSimpleName()));
+        //mt.set("__pairs", new LuaSyntaxToJavaSyntax.Pairs(obj)); - LuaJ doesn't support this yet.
         val.setmetatable(mt);
     }
 }
