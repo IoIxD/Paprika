@@ -1,24 +1,19 @@
 package net.ioixd.paprika;
 import org.bukkit.ChatColor;
 import org.bukkit.command.CommandMap;
-import org.bukkit.plugin.Plugin;
 import org.luaj.vm2.*;
-import org.luaj.vm2.lib.PackageLib;
+import org.luaj.vm2.lib.jse.CoerceJavaToLua;
 import org.luaj.vm2.lib.jse.JsePlatform;
-
 import java.io.*;
-
 import javax.script.*;
-
 import org.luaj.vm2.LuaValue;
-import org.luaj.vm2.script.LuaScriptEngine;
 import org.luaj.vm2.script.LuaScriptEngineFactory;
+import com.google.common.reflect.ClassPath;
+import com.google.common.reflect.ClassPath.ClassInfo;
 import org.luaj.vm2.script.LuajContext;
 
 import java.lang.reflect.Field;
 import java.util.*;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 public class Lua {
     Paprika paprika;
@@ -27,6 +22,7 @@ public class Lua {
 
     CompiledScript script;
     Bindings sb;
+    ScriptEngine e;
 
     Bridge bridge;
 
@@ -67,14 +63,16 @@ public class Lua {
 
         org.luaj.vm2.luajc.LuaJC.install(JsePlatform.standardGlobals());
 
-        ScriptEngine e = new LuaScriptEngineFactory().getScriptEngine();
+        this.e = new LuaScriptEngineFactory().getScriptEngine();
         e.getContext().setWriter(this.sw);
-
 
         // set the package path
         String apath = pluginFolder.getAbsolutePath();
         char sep = File.separatorChar;
         StringBuilder path = new StringBuilder();
+
+        // setup enums and static bindings
+        setupEnumerators();
 
         this.paprika.getLogger().info("Resolving package path");
         path.append("package.path = \"")
@@ -111,6 +109,7 @@ public class Lua {
         }
         StringBuilder path = new StringBuilder();
         File[] files = folder.listFiles();
+        assert files != null;
         for(File file : files) {
             if(file.getName().endsWith("init.lua")) {
                 path.append(file.getAbsolutePath().replace("init.lua","?.lua"))
@@ -126,7 +125,9 @@ public class Lua {
         if(folder.listFiles() == null) {
             return;
         }
-        for(File file : folder.listFiles()) {
+        File[] files = folder.listFiles();
+        assert files != null;
+        for(File file : files) {
             if(file.getName().endsWith(".lua")) {
                 this.paprika.getLogger().info("Compiling "+file.getPath());
                 StringBuilder buffer = new StringBuilder();
@@ -220,13 +221,41 @@ public class Lua {
         return func != null;
     }
 
-    public String listMinecraftFunctions() {
+    // setup enums and static classes
+    public void setupEnumerators() throws IOException {
+        LuajContext context = (LuajContext) e.getContext();
+        ClassPath classpath = ClassPath.from(Thread.currentThread().getContextClassLoader());
+        for (ClassInfo classInfo : classpath.getAllClasses()) {
+            String pkgName = classInfo.getPackageName();
+            // only load things from the four supported classes.
+            if(!(
+                    pkgName.contains("minecraft") ||
+                    pkgName.contains("spigot") ||
+                    pkgName.contains("bukkit") ||
+                    pkgName.contains("paper")
+            )) {
+                continue;
+            }
+            String name = classInfo.getSimpleName();
+            // ignore "blank names"; private classes?
+            if(name.equals("")) {
+                continue;
+            }
+            Class<?> cls = classInfo.load();
+            // so we need to bind these to some ugly looking globals first.
+            // construct the ugly name.
+            String uglyName = pkgName.replace(".","_")+"_"+CamelToSnakeCase.convertToSnake(name);
+            System.out.println(uglyName);
+            context.globals.set(uglyName, CoerceJavaToLua.coerce(cls));
+        }
+        e.setContext(context);
+    }
 
+    public String listMinecraftFunctions() {
         return "todo";
     }
 
     public String listCustomFunctions() {
-
         return "todo";
     }
 }
