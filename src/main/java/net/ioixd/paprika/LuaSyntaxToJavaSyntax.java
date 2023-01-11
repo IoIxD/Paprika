@@ -1,14 +1,14 @@
 package net.ioixd.paprika;
 
 import org.luaj.vm2.*;
-import org.luaj.vm2.lib.OneArgFunction;
-import org.luaj.vm2.lib.ThreeArgFunction;
-import org.luaj.vm2.lib.TwoArgFunction;
-import org.luaj.vm2.lib.ZeroArgFunction;
+import org.luaj.vm2.lib.*;
 import org.luaj.vm2.lib.jse.CoerceJavaToLua;
+import org.luaj.vm2.lib.jse.CoerceLuaToJava;
 
+import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
 import java.util.HashMap;
+import java.util.Vector;
 
 public class LuaSyntaxToJavaSyntax {
 
@@ -163,6 +163,22 @@ public class LuaSyntaxToJavaSyntax {
         }
     }
 
+    public static class New extends ZeroArgFunction {
+        Constructor<?> constructor;
+
+        New(Constructor<?> constructor) {
+            this.constructor = constructor;
+        };
+
+        @Override
+        public LuaValue call() {
+            try {
+                return CoerceJavaToLua.coerce(constructor.newInstance());
+            } catch (Exception e) {
+                throw new LuaError(e.getMessage());
+            }
+        }
+    }
     // __lpairs
 
     // __add

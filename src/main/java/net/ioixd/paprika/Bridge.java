@@ -5,7 +5,11 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.HandlerList;
 import org.bukkit.plugin.RegisteredListener;
 import org.luaj.vm2.*;
+import org.luaj.vm2.lib.ZeroArgFunction;
 import org.luaj.vm2.lib.jse.CoerceJavaToLua;
+
+import java.lang.reflect.Constructor;
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Modifier;
 import java.util.regex.Pattern;
 
@@ -40,7 +44,7 @@ public class Bridge implements Listener {
         // this listener.
         if(lua.functionExists(hookName)) {
             LuaValue j = fullCoerce(event);
-            lua.functionExecuteAll(hookName, j);
+            lua.functionExecute(hookName, j);
         } else {
             HandlerList handler = event.getHandlers();
             handler.unregister(registeredListener);
@@ -73,6 +77,11 @@ public class Bridge implements Listener {
         mt.set("__newindex", new LuaSyntaxToJavaSyntax.NewIndex());
         mt.set("__len", new LuaSyntaxToJavaSyntax.Length(obj));
         mt.set("__name", LuaString.valueOf(obj.getClass().getSimpleName()));
+        // does it have a constructor function?
+        try {
+            final Constructor<?> constructor = obj.getClass().getConstructor();
+            mt.set("new", new LuaSyntaxToJavaSyntax.New(constructor));
+        } catch (NoSuchMethodException ignored) {} // guess it doesn't.
         //mt.set("__pairs", new LuaSyntaxToJavaSyntax.Pairs(obj)); - LuaJ doesn't support this yet.
         val.setmetatable(mt);
     }

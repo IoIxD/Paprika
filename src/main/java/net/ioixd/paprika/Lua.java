@@ -12,8 +12,11 @@ import com.google.common.reflect.ClassPath;
 import com.google.common.reflect.ClassPath.ClassInfo;
 import org.luaj.vm2.script.LuajContext;
 
+import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.util.*;
+
+import static net.ioixd.paprika.Bridge.fullCoerce;
 
 public class Lua {
     Paprika paprika;
@@ -193,28 +196,6 @@ public class Lua {
         this.broadcastBuffer();
     }
 
-    // execute ALL functions with the given name
-    public void functionExecuteAll(String functionName, LuaValue ...args) {
-        boolean execute = true;
-        while(execute) {
-            if(functionExists(functionName)) {
-                try {
-                    functionExecute(functionName, args);
-                    functionName += "_";
-                } catch(LuaError ex) {
-                    paprika.getLogger().severe(ex.getMessage());
-                    execute = false;
-                } catch(Exception ex) {
-                    ex.printStackTrace();
-                    execute = false;
-                }
-            } else {
-                execute = false;
-            }
-        }
-
-    }
-
     // check if a function exists
     public boolean functionExists(String functionName) {
         LuaFunction func = (LuaFunction) sb.get(functionName);
@@ -245,8 +226,7 @@ public class Lua {
             // so we need to bind these to some ugly looking globals first.
             // construct the ugly name.
             String uglyName = pkgName.replace(".","_")+"_"+CamelToSnakeCase.convertToSnake(name);
-            System.out.println(uglyName);
-            context.globals.set(uglyName, CoerceJavaToLua.coerce(cls));
+            context.globals.set(uglyName, fullCoerce(cls));
         }
         e.setContext(context);
     }
